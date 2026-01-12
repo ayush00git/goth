@@ -1,0 +1,1 @@
+A go based production standard authentication service.

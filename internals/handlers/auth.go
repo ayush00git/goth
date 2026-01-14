@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"goth/internals/models"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type AuthHandler struct {
@@ -22,6 +24,9 @@ func (h *AuthHandler) SignUp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	user.ID = primitive.NewObjectID();
+	user.CreatedAt = time.Now();
+
 	_, err := h.Collection.InsertOne(context.TODO(), user)
 	if err != nil {
 		http.Error(w, "Error creating user", http.StatusInternalServerError)
@@ -29,6 +34,7 @@ func (h *AuthHandler) SignUp(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusCreated) // 201
 	w.Write([]byte("User created successfully"))
+	json.NewEncoder(w).Encode(user);
 }
 
 func (h *AuthHandler) LogIn(w http.ResponseWriter, r *http.Request) {

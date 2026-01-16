@@ -10,6 +10,7 @@ func Blog(blogHandler *handlers.BlogHandler) http.Handler {
 
 	mux.HandleFunc("POST /blog/write", blogHandler.WriteBlog)
 	mux.HandleFunc("GET /blog/", blogHandler.GetBlog)
+	mux.HandleFunc("GET /blog/{BlogID}", blogHandler.GetBlogByID)
 
 	return mux
 }

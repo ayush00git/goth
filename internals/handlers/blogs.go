@@ -42,10 +42,11 @@ func (h *BlogHandler) WriteBlog (w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Only get public blogs
 func (h *BlogHandler) GetBlog (w http.ResponseWriter, r *http.Request) {
 	var blogs = []models.Blog{}
 
-	filter := bson.M{}
+	filter := bson.M{"isDraft": false}
 	cursor, err := h.Collection.Find(context.TODO(), filter)
 	if err != nil {
 		http.Error(w, "Error getting the blogs", http.StatusInternalServerError)
@@ -61,6 +62,30 @@ func (h *BlogHandler) GetBlog (w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(blogs); err != nil {
 		http.Error(w, "Error encoding the blogs", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (h *BlogHandler) GetBlogByID (w http.ResponseWriter, r *http.Request) {
+	ObjID := r.PathValue("BlogID")
+
+	blogId, err := primitive.ObjectIDFromHex(ObjID)
+	if err != nil {
+		http.Error(w, "Error converting object id to string", http.StatusBadRequest)
+		return
+	}
+
+	var foundBlog models.Blog
+
+	filter := bson.M{"_id": blogId}
+	err = h.Collection.FindOne(context.TODO(), filter).Decode(&foundBlog)
+
+	if err != nil {
+		http.Error(w, "No document with that ID exists", http.StatusBadRequest)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(foundBlog); err != nil {
+		http.Error(w, "Unable to encode the blog", http.StatusInternalServerError)
 		return
 	}
 }

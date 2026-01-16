@@ -2,18 +2,18 @@ package main
 
 import (
 	"context"
-	"net/http"
-	"log"
 	"fmt"
+	"log"
+	"net/http"
 	"os"
 	"time"
 
 	"goth/internals/handlers"
 	"goth/internals/routes"
 
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/mongo"
 	"github.com/joho/godotenv"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func main() {
@@ -21,7 +21,7 @@ func main() {
 		log.Fatal(`Unable to locate the .env`)
 	}
 
-	uri := os.Getenv("MONGO_URI");
+	uri := os.Getenv("MONGO_URI")
 	if uri == "" {
 		log.Fatal("MONGO_URI string is not present in the env variables")
 	}
@@ -39,17 +39,26 @@ func main() {
 	}
 	fmt.Println("MongoDB connected successfully!")
 
-	collection := client.Database("goth_db").Collection("users")
+	AuthCollection := client.Database("goth_db").Collection("users")
+	BlogCollection := client.Database("goth_db").Collection("blogs")
 
 	authHandler := &handlers.AuthHandler{
-		Collection: collection,
+		Collection: AuthCollection,
 	}
+
+	blogHandler := &handlers.BlogHandler{
+		Collection: BlogCollection,
+	}
+
+	mux := http.NewServeMux()
+	mux.Handle("/auth/", routes.Auth(authHandler))
+	mux.Handle("/blog/", routes.Blog(blogHandler))
 
 	srv := &http.Server{
 		Addr: ":8080",
-		Handler: routes.Auth(authHandler),
+		Handler: mux,
 	}
-	
+
 	fmt.Println("Server started on port 8080")
-	log.Fatal(srv.ListenAndServe());
+	log.Fatal(srv.ListenAndServe())
 }

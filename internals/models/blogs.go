@@ -11,7 +11,7 @@ type Blog struct {
 	Title		string					`json:"title" bson:"title"`
 	Excerpt		string					`json:"excerpt" bson:"excerpt"`
 	Tags		[]string				`json:"tags" bson:"tags"`
-	Body		string					`json:"content" bson:"content"`
+	Content		string					`json:"content" bson:"content"`
 	IsDraft		bool					`json:"isDraft" bson:"isDraft"`
 	CreatedAt	time.Time				`json:"created_at" bson:"created_at"`
 }

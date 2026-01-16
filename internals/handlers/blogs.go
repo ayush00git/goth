@@ -36,6 +36,10 @@ func (h *BlogHandler) WriteBlog (w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusCreated)
 	w.Write([]byte("Blog posted!"))
+	if err := json.NewEncoder(w).Encode(blog); err != nil {
+		http.Error(w, "Unable to post blog at the moment", http.StatusInternalServerError)
+		return
+	}
 }
 
 func (h *BlogHandler) GetBlog (w http.ResponseWriter, r *http.Request) {

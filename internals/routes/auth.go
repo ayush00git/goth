@@ -5,11 +5,12 @@ import (
 	"goth/internals/handlers"
 )
 
-func Auth(authHandler *handlers.AuthHandler) http.Handler {
-	mux := http.NewServeMux();
+func Auth (authHandler *handlers.AuthHandler) http.Handler {
+	mux := http.NewServeMux()
 
-	mux.HandleFunc("POST /signup", authHandler.SignUp);
-	mux.HandleFunc("POST /login", authHandler.LogIn);
+	mux.HandleFunc("POST /signup", authHandler.Signup)
+	mux.HandleFunc("POST /login", authHandler.Login)
+	mux.HandleFunc("GET /users", authHandler.GetUsers)
 
-	return mux;
+	return mux
 }

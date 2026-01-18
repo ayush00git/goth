@@ -89,3 +89,26 @@ func (h *BlogHandler) GetBlogByID (w http.ResponseWriter, r *http.Request) {
 		return
 	}
 }
+
+func (h *BlogHandler) DeleteBlogByID (w http.ResponseWriter, r *http.Request) {
+	ObjId := r.PathValue("BlogID")
+
+	blogId, err := primitive.ObjectIDFromHex(ObjId);
+	if err != nil {
+		http.Error(w, "Error converting object id to string", http.StatusInternalServerError)
+		return
+	}
+
+	var foundBlog models.Blog
+
+	filter := bson.M{"_id": blogId}
+	err = h.Collection.FindOneAndDelete(context.TODO(), filter).Decode(&foundBlog)
+	if err != nil {
+		http.Error(w, "Unable to find the blog", http.StatusBadRequest)
+		return
+	}
+	
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(foundBlog)
+	w.Write([]byte("Blog deleted success!"))
+}

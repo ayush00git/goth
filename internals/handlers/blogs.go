@@ -10,6 +10,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
@@ -99,16 +100,67 @@ func (h *BlogHandler) DeleteBlogByID (w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var foundBlog models.Blog
+	var deletedBlog models.Blog
 
 	filter := bson.M{"_id": blogId}
-	err = h.Collection.FindOneAndDelete(context.TODO(), filter).Decode(&foundBlog)
+	err = h.Collection.FindOneAndDelete(context.TODO(), filter).Decode(&deletedBlog)
 	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			http.Error(w, "No blogs found", http.StatusNotFound)
+			return
+		}
 		http.Error(w, "Unable to find the blog", http.StatusBadRequest)
 		return
 	}
 	
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(foundBlog)
-	w.Write([]byte("Blog deleted success!"))
+	w.WriteHeader(http.StatusOK)
+
+	response := map[string]interface{}{
+		"message": "Blog deleted successfully!",
+		"blog": deletedBlog,
+	}
+
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "Unable to encode json", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (h *BlogHandler) EditBlogByID (w http.ResponseWriter, r *http.Request) {
+	objId := r.PathValue("BlogID")
+
+	blogId, err := primitive.ObjectIDFromHex(objId)
+	if err != nil {
+		http.Error(w, "Unable to convert from string to object id", http.StatusInternalServerError)
+		return
+	}
+
+	var updatedData map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&updatedData); err != nil {
+		http.Error(w, "Unable to edit", http.StatusInternalServerError)
+		return
+	}
+
+	update := bson.M{"$set": updatedData}
+	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
+
+	var updatedBlog models.Blog
+	err = h.Collection.FindOneAndUpdate(context.TODO(), bson.M{"_id": blogId}, update, opts).Decode(&updatedBlog)
+	if err != nil {
+		http.Error(w, "Error updating the document", http.StatusInternalServerError)
+		return
+	}
+
+	response := map[string]interface{}{
+		"success": true,
+		"message": "Blog updated successfully",
+		"blog": updatedBlog,
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "{error: encoding the json}", http.StatusInternalServerError)
+		return
+	}
 }

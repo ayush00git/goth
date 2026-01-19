@@ -33,7 +33,7 @@ func AuthMiddleware (next http.Handler) http.Handler {
 		}
 
 		if tokenString == "" {
-			http.Error(w, "Unable to retrieve token", http.StatusUnauthorized)
+			http.Error(w, "Unauthorized access", http.StatusUnauthorized)
 			return
 		}
 

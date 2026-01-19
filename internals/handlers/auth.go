@@ -64,7 +64,7 @@ func (h *AuthHandler) GetUsers (w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *AuthHandler) Login (w http.ResponseWriter, r *http.Response) {
+func (h *AuthHandler) Login (w http.ResponseWriter, r *http.Request) {
 	var inputs models.User
 	var foundUser models.User
 
@@ -83,7 +83,7 @@ func (h *AuthHandler) Login (w http.ResponseWriter, r *http.Response) {
 	}
 
 	// Validating the passwords
-	if inputs.Password == foundUser.Password {
+	if inputs.Password != foundUser.Password {
 		http.Error(w, "Incorrect Password", http.StatusUnauthorized)
 		return
 	}

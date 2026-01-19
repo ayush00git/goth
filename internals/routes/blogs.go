@@ -2,17 +2,19 @@ package routes
 
 import (
 	"goth/internals/handlers"
+	"goth/internals/middlewares"
 	"net/http"
 )
 
 func Blog(blogHandler *handlers.BlogHandler) http.Handler {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("POST /blog/write/", blogHandler.WriteBlog)
 	mux.HandleFunc("GET /blog/", blogHandler.GetBlog)
-	mux.HandleFunc("GET /blog/{BlogID}/", blogHandler.GetBlogByID)
-	mux.HandleFunc("DELETE /blog/delete/{BlogID}/", blogHandler.DeleteBlogByID)
-	mux.HandleFunc("PUT /blog/edit/{BlogID}/", blogHandler.EditBlogByID)
+	mux.Handle("GET /blog/{BlogID}/", middlewares.AuthMiddleware(http.HandlerFunc(blogHandler.GetBlogByID)))
+
+	mux.Handle("POST /blog/write/", middlewares.AuthMiddleware(http.HandlerFunc(blogHandler.WriteBlog)))	
+	mux.Handle("DELETE /blog/delete/{BlogID}/", middlewares.AuthMiddleware(http.HandlerFunc(blogHandler.DeleteBlogByID)))
+	mux.Handle("PUT /blog/edit/{BlogID}/", middlewares.AuthMiddleware(http.HandlerFunc(blogHandler.EditBlogByID)))
 
 	return mux
 }

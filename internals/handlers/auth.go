@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"time"
 
+	"goth/internals/helpers"
+
 	"goth/internals/models"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -38,32 +40,6 @@ func (h *AuthHandler) Signup (w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(user)
 }
 
-func (h *AuthHandler) Login (w http.ResponseWriter, r *http.Request) {
-	var inputs models.User
-	var foundUser models.User
-
-	if err := json.NewDecoder(r.Body).Decode(&inputs); err != nil {
-		http.Error(w, "Invaid Credentials", http.StatusUnauthorized)
-		return
-	}
-
-	filter := bson.M{"email": inputs.Email}
-	err := h.Collection.FindOne(context.TODO(), filter).Decode(&foundUser)
-
-	if err != nil {
-		http.Error(w, "User does not exists", http.StatusUnauthorized)
-		return
-	}
-
-	if inputs.Password != foundUser.Password {
-		http.Error(w, "Incorrect password", http.StatusUnauthorized)
-		return
-	} 
-
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Login success!"))
-}
-
 func (h *AuthHandler) GetUsers (w http.ResponseWriter, r *http.Request) {
 	users := []models.User{}
 
@@ -84,6 +60,59 @@ func (h *AuthHandler) GetUsers (w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(users); err != nil {
 		http.Error(w, "Error encoding users", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (h *AuthHandler) Login (w http.ResponseWriter, r *http.Response) {
+	var inputs models.User
+	var foundUser models.User
+
+	// decoding the req object
+	if err := json.NewDecoder(r.Body).Decode(&inputs); err != nil {
+		http.Error(w, "Error decoding the request", http.StatusInternalServerError)
+		return
+	}
+
+	// searching if the email entered exists?
+	filter := bson.M{"email": inputs.Email}
+	err := h.Collection.FindOne(context.TODO(), filter).Decode(&foundUser)
+	if err != nil {
+		http.Error(w, "No user with that email exists", http.StatusBadRequest)
+		return
+	}
+
+	// Validating the passwords
+	if inputs.Password == foundUser.Password {
+		http.Error(w, "Incorrect Password", http.StatusUnauthorized)
+		return
+	}
+
+	tokenString, err := helpers.GenerateToken(foundUser.ID.Hex(), foundUser.Email);
+	if err != nil {
+		http.Error(w, "Error in generating a token", http.StatusInternalServerError)
+		return
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name: "token",
+		Value: tokenString,
+		Path: "/",
+		HttpOnly: true,
+		Secure: false,
+		SameSite: http.SameSiteLaxMode,
+		Expires: time.Now().Add(24 * time.Hour),
+	})
+
+	response := map[string]interface{} {
+		"message": "success",
+		"user": foundUser,
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "Error encoding the response", http.StatusInternalServerError)
 		return
 	}
 }

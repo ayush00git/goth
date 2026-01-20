@@ -26,6 +26,8 @@ func (h *AuthHandler) Signup (w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// setting up default fields
+	user.Role = "user"
 	user.ID = primitive.NewObjectID()
 	user.CreatedAt = time.Now()
 

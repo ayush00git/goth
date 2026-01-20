@@ -33,6 +33,10 @@ func (h *AuthHandler) Signup (w http.ResponseWriter, r *http.Request) {
 
 	_, err := h.Collection.InsertOne(context.TODO(), user)
 	if err != nil {
+		if mongo.IsDuplicateKeyError(err) {
+			http.Error(w, "Email already registered", http.StatusConflict)
+			return
+		}
 		http.Error(w, "Error creating user", http.StatusInternalServerError)
 		return
 	}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"time"
+	"strings"
 
 	"goth/internals/helpers"
 
@@ -34,16 +35,31 @@ func (h *AuthHandler) Signup (w http.ResponseWriter, r *http.Request) {
 	_, err := h.Collection.InsertOne(context.TODO(), user)
 	if err != nil {
 		if mongo.IsDuplicateKeyError(err) {
-			http.Error(w, "Email already registered", http.StatusConflict)
-			return
+			if strings.Contains(err.Error(), "email") {
+				http.Error(w, "User with email already exists", http.StatusConflict)
+				return
+			}
+			if strings.Contains(err.Error(), "userName") {
+				http.Error(w, "That username is already taken", http.StatusConflict)
+				return
+			}
 		}
 		http.Error(w, "Error creating user", http.StatusInternalServerError)
 		return
 	}
 
+	response := map[string]interface{} {
+		"success": "true",
+		"message": "User created successfully!",
+		"user": user,
+	}
+	
 	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte("Signup successfull"))
-	json.NewEncoder(w).Encode(user)
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "Error encoding the response", http.StatusInternalServerError)
+		return
+	}
 }
 
 func (h *AuthHandler) GetUsers (w http.ResponseWriter, r *http.Request) {
@@ -63,6 +79,7 @@ func (h *AuthHandler) GetUsers (w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(users); err != nil {
 		http.Error(w, "Error encoding users", http.StatusInternalServerError)
@@ -138,6 +155,7 @@ func (h *AuthHandler) Logout (w http.ResponseWriter, r *http.Request) {
 		"message": "Logged out successfully!",
 	}
 
+	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		http.Error(w, "Error encoding the response", http.StatusInternalServerError)

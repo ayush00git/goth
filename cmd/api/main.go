@@ -43,7 +43,7 @@ func main() {
 	AuthCollection := client.Database("goth_db").Collection("users")
 	BlogCollection := client.Database("goth_db").Collection("blogs")
 
-	db.CreateEmailIndex(AuthCollection)
+	db.CreateIndex(AuthCollection)
 
 	authHandler := &handlers.AuthHandler{
 		Collection: AuthCollection,

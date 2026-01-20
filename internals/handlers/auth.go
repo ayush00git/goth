@@ -142,7 +142,8 @@ func (h *AuthHandler) Login (w http.ResponseWriter, r *http.Request) {
 	})
 
 	response := map[string]interface{} {
-		"message": "success",
+		"success": true,
+		"message": "Logged in successfully!",
 		"user": map[string]string{
 			"userName": foundUser.UserName,
 			"email": foundUser.Email,

@@ -10,6 +10,7 @@ import (
 
 	"goth/internals/handlers"
 	"goth/internals/routes"
+	"goth/internals/db"
 
 	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -41,6 +42,8 @@ func main() {
 
 	AuthCollection := client.Database("goth_db").Collection("users")
 	BlogCollection := client.Database("goth_db").Collection("blogs")
+
+	db.CreateIndex(AuthCollection)
 
 	authHandler := &handlers.AuthHandler{
 		Collection: AuthCollection,

@@ -13,6 +13,8 @@ import (
 type Claims struct {
 	UserID		string		`json:"user_id"`
 	Email		string		`json:"email"`
+	UserName	string		`json:"userName"`
+	Role		string		`json:"role"`
 	jwt.RegisteredClaims
 }
 
@@ -27,10 +29,12 @@ func GetSecretKey() []byte {
 }
 
 // Generating a token
-func GenerateToken(userId, email string) (string, error) {
+func GenerateToken(userId, email, userName, role string) (string, error) {
 	claims := Claims{
 		UserID: userId,
 		Email: email,
+		UserName: userName,
+		Role: role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 			IssuedAt: jwt.NewNumericDate(time.Now()), 

@@ -8,8 +8,9 @@ import (
 	"strings"
 
 	"goth/internals/helpers"
-
 	"goth/internals/models"
+
+	"golang.org/x/crypto/bcrypt"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -27,12 +28,20 @@ func (h *AuthHandler) Signup (w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ByteHash, err := bcrypt.GenerateFromPassword([]byte(user.Password), 10)
+	if err != nil {
+		http.Error(w, "Error generating hash pass", http.StatusInternalServerError)
+		return
+	}
+	hash := string(ByteHash)
+
+	user.Password = hash
 	// setting up default fields
 	user.Role = "user"
 	user.ID = primitive.NewObjectID()
 	user.CreatedAt = time.Now()
 
-	_, err := h.Collection.InsertOne(context.TODO(), user)
+	_, err = h.Collection.InsertOne(context.TODO(), user)
 	if err != nil {
 		if mongo.IsDuplicateKeyError(err) {
 			if strings.Contains(err.Error(), "email") {
@@ -51,11 +60,15 @@ func (h *AuthHandler) Signup (w http.ResponseWriter, r *http.Request) {
 	response := map[string]interface{} {
 		"success": "true",
 		"message": "User created successfully!",
-		"user": user,
+		"user": map[string]string{
+			"userName": user.UserName,
+			"email": user.Email,
+			"role": user.Role,
+		},
 	}
 	
-	w.WriteHeader(http.StatusCreated)
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		http.Error(w, "Error encoding the response", http.StatusInternalServerError)
 		return
@@ -79,8 +92,8 @@ func (h *AuthHandler) GetUsers (w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(users); err != nil {
 		http.Error(w, "Error encoding users", http.StatusInternalServerError)
 		return
@@ -101,15 +114,16 @@ func (h *AuthHandler) Login (w http.ResponseWriter, r *http.Request) {
 	filter := bson.M{"email": inputs.Email}
 	err := h.Collection.FindOne(context.TODO(), filter).Decode(&foundUser)
 	if err != nil {
-		http.Error(w, "No user with that email exists", http.StatusBadRequest)
+		http.Error(w, "Invalid Credentials", http.StatusBadRequest)
 		return
 	}
 
 	// Validating the passwords
-	if inputs.Password != foundUser.Password {
-		http.Error(w, "Incorrect Password", http.StatusUnauthorized)
+	err = bcrypt.CompareHashAndPassword([]byte(foundUser.Password), []byte(inputs.Password))
+	if err != nil {
+		http.Error(w, "Incorrect credentials", http.StatusUnauthorized)
 		return
-	}
+	} 
 
 	tokenString, err := helpers.GenerateToken(foundUser.ID.Hex(), foundUser.Email, foundUser.UserName, foundUser.Role);
 	if err != nil {
@@ -128,12 +142,17 @@ func (h *AuthHandler) Login (w http.ResponseWriter, r *http.Request) {
 	})
 
 	response := map[string]interface{} {
-		"message": "success",
-		"user": foundUser,
+		"success": true,
+		"message": "Logged in successfully!",
+		"user": map[string]string{
+			"userName": foundUser.UserName,
+			"email": foundUser.Email,
+			"role": foundUser.Role,
+		},
 	}
 
-	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		http.Error(w, "Error encoding the response", http.StatusInternalServerError)
 		return
@@ -155,8 +174,8 @@ func (h *AuthHandler) Logout (w http.ResponseWriter, r *http.Request) {
 		"message": "Logged out successfully!",
 	}
 
-	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		http.Error(w, "Error encoding the response", http.StatusInternalServerError)
 		return

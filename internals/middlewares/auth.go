@@ -11,6 +11,8 @@ import (
 type ContextKey string
 const (
 	UserIDKey	ContextKey = "userId"
+	RoleIDKey	ContextKey = "role"
+	UserNameKey	ContextKey = "userName"
 )
 
 func AuthMiddleware (next http.Handler) http.Handler {
@@ -44,6 +46,8 @@ func AuthMiddleware (next http.Handler) http.Handler {
 		}
 
 		ctx := context.WithValue(r.Context(), UserIDKey, claims.UserID)
+		ctx = context.WithValue(ctx, RoleIDKey, claims.Role)
+		ctx = context.WithValue(ctx, UserNameKey, claims.UserName)
 		
 		r = r.WithContext(ctx)
 		next.ServeHTTP(w, r)

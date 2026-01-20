@@ -111,7 +111,7 @@ func (h *AuthHandler) Login (w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tokenString, err := helpers.GenerateToken(foundUser.ID.Hex(), foundUser.Email);
+	tokenString, err := helpers.GenerateToken(foundUser.ID.Hex(), foundUser.Email, foundUser.UserName, foundUser.Role);
 	if err != nil {
 		http.Error(w, "Error in generating a token", http.StatusInternalServerError)
 		return

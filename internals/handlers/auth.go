@@ -116,3 +116,25 @@ func (h *AuthHandler) Login (w http.ResponseWriter, r *http.Request) {
 		return
 	}
 }
+
+func (h *AuthHandler) Logout (w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, &http.Cookie{
+		Name: "token",
+		Value: " ",
+		Path: "/",
+		Expires: time.Unix(0, 0),
+		HttpOnly: true,
+		MaxAge: -1,
+	})
+
+	response := map[string]interface{} {
+		"status": "success",
+		"message": "Logged out successfully!",
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "Error encoding the response", http.StatusInternalServerError)
+		return
+	}
+}

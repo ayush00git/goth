@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"goth/internals/models"
+	"goth/internals/middlewares"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -19,9 +20,23 @@ type BlogHandler struct {
 }
 
 func (h *BlogHandler) WriteBlog (w http.ResponseWriter, r *http.Request) {
+	
+	userIDStr, ok := r.Context().Value(middlewares.UserIDKey).(string)
+	if !ok {
+		http.Error(w, "User not found in context", http.StatusUnauthorized)
+		return
+	}
+
+	authorObjID, err := primitive.ObjectIDFromHex(userIDStr)
+	if err != nil {
+		http.Error(w, "Error converting string to objId", http.StatusInternalServerError)
+		return
+	}
+
 	var blog models.Blog
 
 	blog.ID = primitive.NewObjectID()
+	blog.AuthorID = authorObjID
 	blog.CreatedAt = time.Now()
 
 	if err := json.NewDecoder(r.Body).Decode(&blog); err != nil {
@@ -29,15 +44,28 @@ func (h *BlogHandler) WriteBlog (w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err := h.Collection.InsertOne(context.TODO(), blog)
+	_, err = h.Collection.InsertOne(context.TODO(), blog)
 	if err != nil {
 		http.Error(w, "Error submitting the blog", http.StatusInternalServerError)
 		return
 	}
 
+	response := map[string]interface{}{
+		"success": true,
+		"message": "Blog posted successfully",
+		"blog": map[string]interface{}{
+			"author": blog.AuthorID,
+			"title": blog.Title,
+			"excerpt": blog.Excerpt,
+			"tags": blog.Tags,
+			"isDraft": blog.IsDraft,
+			"content": blog.Content,
+		},
+	}	
+	
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte("Blog posted!"))
-	if err := json.NewEncoder(w).Encode(blog); err != nil {
+	if err := json.NewEncoder(w).Encode(response); err != nil {
 		http.Error(w, "Unable to post blog at the moment", http.StatusInternalServerError)
 		return
 	}

@@ -100,7 +100,7 @@ func (h *BlogHandler) GetBlogByID (w http.ResponseWriter, r *http.Request) {
 
 	blogId, err := primitive.ObjectIDFromHex(ObjID)
 	if err != nil {
-		http.Error(w, "Error converting object id to string", http.StatusBadRequest)
+		http.Error(w, "Error converting object id to string at getapi", http.StatusBadRequest)
 		return
 	}
 
@@ -120,17 +120,30 @@ func (h *BlogHandler) GetBlogByID (w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *BlogHandler) DeleteBlogByID (w http.ResponseWriter, r *http.Request) {
-	ObjId := r.PathValue("BlogID")
-
-	blogId, err := primitive.ObjectIDFromHex(ObjId);
+	
+	userIDStr, ok := r.Context().Value(middlewares.UserIDKey).(string)
+	if !ok {
+		http.Error(w, "Error finding user context", http.StatusUnauthorized)
+		return
+	}
+	
+	userIDObj, err := primitive.ObjectIDFromHex(userIDStr)
 	if err != nil {
-		http.Error(w, "Error converting object id to string", http.StatusInternalServerError)
+		http.Error(w, "Error converting from string to objId(user)", http.StatusInternalServerError)
+		return
+	}
+
+	blogIDStr := r.PathValue("BlogID")
+
+	blogIDObj, err := primitive.ObjectIDFromHex(blogIDStr)
+	if err != nil {
+		http.Error(w, "Error converting from string to objId(blog)", http.StatusInternalServerError)
 		return
 	}
 
 	var deletedBlog models.Blog
 
-	filter := bson.M{"_id": blogId}
+	filter := bson.M{"_id": blogIDObj}
 	err = h.Collection.FindOneAndDelete(context.TODO(), filter).Decode(&deletedBlog)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -141,14 +154,19 @@ func (h *BlogHandler) DeleteBlogByID (w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
+	if deletedBlog.AuthorID != userIDObj {
+		http.Error(w, "You are not authorized for this action", http.StatusUnauthorized)
+		return
+	}
 
-	response := map[string]interface{}{
+	response := map[string]interface{} {
+		"success": "true",
 		"message": "Blog deleted successfully!",
 		"blog": deletedBlog,
 	}
 
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		http.Error(w, "Unable to encode json", http.StatusInternalServerError)
 		return

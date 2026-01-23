@@ -54,6 +54,7 @@ func (h *BlogHandler) WriteBlog (w http.ResponseWriter, r *http.Request) {
 		"success": true,
 		"message": "Blog posted successfully",
 		"blog": map[string]interface{}{
+			"blodId": blog.ID, 
 			"author": blog.AuthorID,
 			"title": blog.Title,
 			"excerpt": blog.Excerpt,
@@ -72,25 +73,36 @@ func (h *BlogHandler) WriteBlog (w http.ResponseWriter, r *http.Request) {
 }
 
 // Only get public blogs
-func (h *BlogHandler) GetBlog (w http.ResponseWriter, r *http.Request) {
+func (h *BlogHandler) GetBlogs (w http.ResponseWriter, r *http.Request) {
 	var blogs = []models.Blog{}
-
+	
 	filter := bson.M{"isDraft": false}
 	cursor, err := h.Collection.Find(context.TODO(), filter)
 	if err != nil {
-		http.Error(w, "Error getting the blogs", http.StatusInternalServerError)
+		if err == mongo.ErrNoDocuments {
+			http.Error(w, "No blogs found", http.StatusNotFound)
+			return 
+		}
+		http.Error(w, "Error finding the requested documents", http.StatusInternalServerError)
 		return
 	}
-	defer cursor.Close(context.TODO())
+	defer	cursor.Close(context.TODO())
 
 	if err := cursor.All(context.TODO(), &blogs); err != nil {
 		http.Error(w, "Error decoding blogs", http.StatusInternalServerError)
-		return
+		return 
 	}
 
+	response := map[string]interface{}{
+		"success": "true",
+		"message": "Blogs fetched successfully",
+		"blogs": blogs,
+	}
+	
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(blogs); err != nil {
-		http.Error(w, "Error encoding the blogs", http.StatusInternalServerError)
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "Error encoding the response", http.StatusInternalServerError)
 		return
 	}
 }

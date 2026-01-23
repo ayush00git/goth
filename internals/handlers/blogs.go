@@ -141,28 +141,38 @@ func (h *BlogHandler) DeleteBlogByID (w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var deletedBlog models.Blog
-
+	var deleteBlog models.Blog
+	
 	filter := bson.M{"_id": blogIDObj}
-	err = h.Collection.FindOneAndDelete(context.TODO(), filter).Decode(&deletedBlog)
+	err = h.Collection.FindOne(context.TODO(), filter).Decode(&deleteBlog)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			http.Error(w, "No blogs found", http.StatusNotFound)
 			return
 		}
-		http.Error(w, "Unable to find the blog", http.StatusBadRequest)
+		http.Error(w, "Unable to fetch the requested document at the moment", http.StatusInternalServerError)
 		return
 	}
-	
-	if deletedBlog.AuthorID != userIDObj {
+
+	if deleteBlog.AuthorID != userIDObj {
 		http.Error(w, "You are not authorized for this action", http.StatusUnauthorized)
+		return
+	}
+
+	err = h.Collection.FindOneAndDelete(context.TODO(), filter).Decode(&deleteBlog)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			http.Error(w, "No blogs found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "Unable to fetch the requested document at the moment", http.StatusInternalServerError)
 		return
 	}
 
 	response := map[string]interface{} {
 		"success": "true",
 		"message": "Blog deleted successfully!",
-		"blog": deletedBlog,
+		"blog": deleteBlog,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

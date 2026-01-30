@@ -2,7 +2,7 @@ package routes
 
 import (
 	"net/http"
-	"goth/internals/handlers"
+	"goth/handlers"
 )
 
 func Auth (authHandler *handlers.AuthHandler) http.Handler {

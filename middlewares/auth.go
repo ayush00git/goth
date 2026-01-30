@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"goth/internals/helpers"
+	"goth/helpers"
 )
 
 type ContextKey string

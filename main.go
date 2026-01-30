@@ -8,9 +8,9 @@ import (
 	"os"
 	"time"
 
-	"goth/internals/handlers"
-	"goth/internals/routes"
-	"goth/internals/db"
+	"goth/handlers"
+	"goth/routes"
+	"goth/db"
 
 	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -41,7 +41,6 @@ func main() {
 	fmt.Println("MongoDB connected successfully!")
 
 	AuthCollection := client.Database("goth_db").Collection("users")
-	BlogCollection := client.Database("goth_db").Collection("blogs")
 
 	db.CreateIndex(AuthCollection)
 
@@ -49,13 +48,8 @@ func main() {
 		Collection: AuthCollection,
 	}
 
-	blogHandler := &handlers.BlogHandler{
-		Collection: BlogCollection,
-	}
-
 	mux := http.NewServeMux()
 	mux.Handle("/auth/", routes.Auth(authHandler))
-	mux.Handle("/blog/", routes.Blog(blogHandler))
 
 	srv := &http.Server{
 		Addr: ":8080",

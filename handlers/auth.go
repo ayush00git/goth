@@ -7,8 +7,8 @@ import (
 	"time"
 	"strings"
 
-	"goth/internals/helpers"
-	"goth/internals/models"
+	"goth/helpers"
+	"goth/models"
 
 	"golang.org/x/crypto/bcrypt"
 	"go.mongodb.org/mongo-driver/bson"

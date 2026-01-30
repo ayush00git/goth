@@ -196,11 +196,36 @@ func (h *BlogHandler) DeleteBlogByID (w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *BlogHandler) EditBlogByID (w http.ResponseWriter, r *http.Request) {
-	objId := r.PathValue("BlogID")
 
-	blogId, err := primitive.ObjectIDFromHex(objId)
+	userIdStr, ok := r.Context().Value(middlewares.UserIDKey).(string)
+	if !ok {
+		http.Error(w, "Error finding user context", http.StatusUnauthorized)
+		return
+	}
+
+	userIdObj, err := primitive.ObjectIDFromHex(userIdStr); 
+	if err != nil {
+		http.Error(w, "Error converting string to object Id", http.StatusInternalServerError)
+		return
+	}
+
+	blogIdStr := r.PathValue("BlogID")
+
+	blogIdObj, err := primitive.ObjectIDFromHex(blogIdStr)
 	if err != nil {
 		http.Error(w, "Unable to convert from string to object id", http.StatusInternalServerError)
+		return
+	}
+
+	var foundBlog models.Blog
+	err = h.Collection.FindOne(context.TODO(), bson.M{"_id": blogIdObj}).Decode(&foundBlog)
+	if err != nil {
+		http.Error(w, "Error finding the requested blog", http.StatusBadRequest)
+		return
+	}
+
+	if foundBlog.AuthorID != userIdObj {
+		http.Error(w, "You are not authorized for this action", http.StatusUnauthorized)
 		return
 	}
 
@@ -214,7 +239,7 @@ func (h *BlogHandler) EditBlogByID (w http.ResponseWriter, r *http.Request) {
 	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
 
 	var updatedBlog models.Blog
-	err = h.Collection.FindOneAndUpdate(context.TODO(), bson.M{"_id": blogId}, update, opts).Decode(&updatedBlog)
+	err = h.Collection.FindOneAndUpdate(context.TODO(), bson.M{"_id": blogIdObj}, update, opts).Decode(&updatedBlog)
 	if err != nil {
 		http.Error(w, "Error updating the document", http.StatusInternalServerError)
 		return

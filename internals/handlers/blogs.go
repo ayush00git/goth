@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"goth/internals/models"
+	"goth/internals/middlewares"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -19,9 +20,23 @@ type BlogHandler struct {
 }
 
 func (h *BlogHandler) WriteBlog (w http.ResponseWriter, r *http.Request) {
+	
+	userIDStr, ok := r.Context().Value(middlewares.UserIDKey).(string)
+	if !ok {
+		http.Error(w, "User not found in context", http.StatusUnauthorized)
+		return
+	}
+
+	authorObjID, err := primitive.ObjectIDFromHex(userIDStr)
+	if err != nil {
+		http.Error(w, "Error converting string to objId", http.StatusInternalServerError)
+		return
+	}
+
 	var blog models.Blog
 
 	blog.ID = primitive.NewObjectID()
+	blog.AuthorID = authorObjID
 	blog.CreatedAt = time.Now()
 
 	if err := json.NewDecoder(r.Body).Decode(&blog); err != nil {
@@ -29,40 +44,65 @@ func (h *BlogHandler) WriteBlog (w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err := h.Collection.InsertOne(context.TODO(), blog)
+	_, err = h.Collection.InsertOne(context.TODO(), blog)
 	if err != nil {
 		http.Error(w, "Error submitting the blog", http.StatusInternalServerError)
 		return
 	}
 
+	response := map[string]interface{}{
+		"success": true,
+		"message": "Blog posted successfully",
+		"blog": map[string]interface{}{
+			"blodId": blog.ID, 
+			"author": blog.AuthorID,
+			"title": blog.Title,
+			"excerpt": blog.Excerpt,
+			"tags": blog.Tags,
+			"isDraft": blog.IsDraft,
+			"content": blog.Content,
+		},
+	}	
+	
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte("Blog posted!"))
-	if err := json.NewEncoder(w).Encode(blog); err != nil {
+	if err := json.NewEncoder(w).Encode(response); err != nil {
 		http.Error(w, "Unable to post blog at the moment", http.StatusInternalServerError)
 		return
 	}
 }
 
 // Only get public blogs
-func (h *BlogHandler) GetBlog (w http.ResponseWriter, r *http.Request) {
+func (h *BlogHandler) GetBlogs (w http.ResponseWriter, r *http.Request) {
 	var blogs = []models.Blog{}
-
+	
 	filter := bson.M{"isDraft": false}
 	cursor, err := h.Collection.Find(context.TODO(), filter)
 	if err != nil {
-		http.Error(w, "Error getting the blogs", http.StatusInternalServerError)
+		if err == mongo.ErrNoDocuments {
+			http.Error(w, "No blogs found", http.StatusNotFound)
+			return 
+		}
+		http.Error(w, "Error finding the requested documents", http.StatusInternalServerError)
 		return
 	}
-	defer cursor.Close(context.TODO())
+	defer	cursor.Close(context.TODO())
 
 	if err := cursor.All(context.TODO(), &blogs); err != nil {
 		http.Error(w, "Error decoding blogs", http.StatusInternalServerError)
-		return
+		return 
 	}
 
+	response := map[string]interface{}{
+		"success": "true",
+		"message": "Blogs fetched successfully",
+		"blogs": blogs,
+	}
+	
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(blogs); err != nil {
-		http.Error(w, "Error encoding the blogs", http.StatusInternalServerError)
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "Error encoding the response", http.StatusInternalServerError)
 		return
 	}
 }
@@ -72,7 +112,7 @@ func (h *BlogHandler) GetBlogByID (w http.ResponseWriter, r *http.Request) {
 
 	blogId, err := primitive.ObjectIDFromHex(ObjID)
 	if err != nil {
-		http.Error(w, "Error converting object id to string", http.StatusBadRequest)
+		http.Error(w, "Error converting object id to string at getapi", http.StatusBadRequest)
 		return
 	}
 
@@ -92,35 +132,63 @@ func (h *BlogHandler) GetBlogByID (w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *BlogHandler) DeleteBlogByID (w http.ResponseWriter, r *http.Request) {
-	ObjId := r.PathValue("BlogID")
-
-	blogId, err := primitive.ObjectIDFromHex(ObjId);
+	
+	userIDStr, ok := r.Context().Value(middlewares.UserIDKey).(string)
+	if !ok {
+		http.Error(w, "Error finding user context", http.StatusUnauthorized)
+		return
+	}
+	
+	userIDObj, err := primitive.ObjectIDFromHex(userIDStr)
 	if err != nil {
-		http.Error(w, "Error converting object id to string", http.StatusInternalServerError)
+		http.Error(w, "Error converting from string to objId(user)", http.StatusInternalServerError)
 		return
 	}
 
-	var deletedBlog models.Blog
+	blogIDStr := r.PathValue("BlogID")
 
-	filter := bson.M{"_id": blogId}
-	err = h.Collection.FindOneAndDelete(context.TODO(), filter).Decode(&deletedBlog)
+	blogIDObj, err := primitive.ObjectIDFromHex(blogIDStr)
+	if err != nil {
+		http.Error(w, "Error converting from string to objId(blog)", http.StatusInternalServerError)
+		return
+	}
+
+	var deleteBlog models.Blog
+	
+	filter := bson.M{"_id": blogIDObj}
+	err = h.Collection.FindOne(context.TODO(), filter).Decode(&deleteBlog)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			http.Error(w, "No blogs found", http.StatusNotFound)
 			return
 		}
-		http.Error(w, "Unable to find the blog", http.StatusBadRequest)
+		http.Error(w, "Unable to fetch the requested document at the moment", http.StatusInternalServerError)
 		return
 	}
-	
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
 
-	response := map[string]interface{}{
-		"message": "Blog deleted successfully!",
-		"blog": deletedBlog,
+	if deleteBlog.AuthorID != userIDObj {
+		http.Error(w, "You are not authorized for this action", http.StatusUnauthorized)
+		return
 	}
 
+	err = h.Collection.FindOneAndDelete(context.TODO(), filter).Decode(&deleteBlog)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			http.Error(w, "No blogs found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "Unable to fetch the requested document at the moment", http.StatusInternalServerError)
+		return
+	}
+
+	response := map[string]interface{} {
+		"success": "true",
+		"message": "Blog deleted successfully!",
+		"blog": deleteBlog,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		http.Error(w, "Unable to encode json", http.StatusInternalServerError)
 		return
@@ -128,11 +196,36 @@ func (h *BlogHandler) DeleteBlogByID (w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *BlogHandler) EditBlogByID (w http.ResponseWriter, r *http.Request) {
-	objId := r.PathValue("BlogID")
 
-	blogId, err := primitive.ObjectIDFromHex(objId)
+	userIdStr, ok := r.Context().Value(middlewares.UserIDKey).(string)
+	if !ok {
+		http.Error(w, "Error finding user context", http.StatusUnauthorized)
+		return
+	}
+
+	userIdObj, err := primitive.ObjectIDFromHex(userIdStr); 
+	if err != nil {
+		http.Error(w, "Error converting string to object Id", http.StatusInternalServerError)
+		return
+	}
+
+	blogIdStr := r.PathValue("BlogID")
+
+	blogIdObj, err := primitive.ObjectIDFromHex(blogIdStr)
 	if err != nil {
 		http.Error(w, "Unable to convert from string to object id", http.StatusInternalServerError)
+		return
+	}
+
+	var foundBlog models.Blog
+	err = h.Collection.FindOne(context.TODO(), bson.M{"_id": blogIdObj}).Decode(&foundBlog)
+	if err != nil {
+		http.Error(w, "Error finding the requested blog", http.StatusBadRequest)
+		return
+	}
+
+	if foundBlog.AuthorID != userIdObj {
+		http.Error(w, "You are not authorized for this action", http.StatusUnauthorized)
 		return
 	}
 
@@ -146,7 +239,7 @@ func (h *BlogHandler) EditBlogByID (w http.ResponseWriter, r *http.Request) {
 	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
 
 	var updatedBlog models.Blog
-	err = h.Collection.FindOneAndUpdate(context.TODO(), bson.M{"_id": blogId}, update, opts).Decode(&updatedBlog)
+	err = h.Collection.FindOneAndUpdate(context.TODO(), bson.M{"_id": blogIdObj}, update, opts).Decode(&updatedBlog)
 	if err != nil {
 		http.Error(w, "Error updating the document", http.StatusInternalServerError)
 		return

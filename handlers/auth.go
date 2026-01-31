@@ -3,17 +3,18 @@ package handlers
 import (
 	"context"
 	"net/http"
-	"time"
 	"strings"
+	"time"
 
 	"goth/helpers"
+	"goth/middlewares"
 	"goth/models"
 
 	"github.com/gin-gonic/gin"
-	"golang.org/x/crypto/bcrypt"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type AuthHandler struct {
@@ -68,6 +69,15 @@ func (h *AuthHandler) Signup (c *gin.Context) {
 }
 
 func (h *AuthHandler) GetUsers (c *gin.Context) {
+
+	val, exists := c.Get(middlewares.UserNameKey)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized access!"})
+		return
+	}
+
+	userName := val.(string)		// typecasting from interface{} to string
+
 	var users = []models.User{}
 
 	// fetch all users
@@ -86,6 +96,7 @@ func (h *AuthHandler) GetUsers (c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": "Users fetched successfully",
+		"requested_by": userName,
 		"users": users,
 	})
 }

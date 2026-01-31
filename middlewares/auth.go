@@ -1,32 +1,34 @@
 package middlewares
 
 import (
-	"context"
 	"net/http"
 	"strings"
 
 	"goth/helpers"
+
+	"github.com/gin-gonic/gin"
 )
 
-type ContextKey string
+// context keys
 const (
-	UserIDKey	ContextKey = "userId"
-	RoleIDKey	ContextKey = "role"
-	UserNameKey	ContextKey = "userName"
+	UserIDKey = "userID"
+	RoleIDKey = "role"
+	UserNameKey = "userName"
 )
 
-func AuthMiddleware (next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func AuthMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
 		tokenString := ""
-
-		cookie, err := r.Cookie("token")
+		// try to get tokenString from cookies
+		cookie, err := c.Cookie("token")
 		if err == nil {
-			tokenString = cookie.Value
+			tokenString = cookie
 		}
 
+		// try to find in headers (authorization header)
 		if tokenString == "" {
-			authHeader := r.Header.Get("Authorization")
-			if authHeader == "" {
+			authHeader := c.GetHeader("Authorization")
+			if authHeader != "" {
 				parts := strings.Split(authHeader, " ")
 				if len(parts) == 2 {
 					tokenString = parts[1]
@@ -34,23 +36,25 @@ func AuthMiddleware (next http.Handler) http.Handler {
 			}
 		}
 
+		// no token found
 		if tokenString == "" {
-			http.Error(w, "Unauthorized access", http.StatusUnauthorized)
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized access is not allowed!"})
+			c.Abort()
 			return
 		}
 
+		// verify the token
 		claims, err := helpers.VerifyToken(tokenString)
 		if err != nil {
-			http.Error(w, "Token not recogonized", http.StatusUnauthorized)
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token not recognized!"})
+			c.Abort()
 			return
 		}
 
-		ctx := context.WithValue(r.Context(), UserIDKey, claims.UserID)		// req.Context(), key, value
-		ctx = context.WithValue(ctx, RoleIDKey, claims.Role)
-		ctx = context.WithValue(ctx, UserNameKey, claims.UserName)
-		
-		r = r.WithContext(ctx)
-		next.ServeHTTP(w, r)
-	})
-}
+		c.Set(UserIDKey, claims.ID)
+		c.Set(RoleIDKey, claims.Role)
+		c.Set(UserNameKey, claims.UserName)
 
+		c.Next()
+	}
+}

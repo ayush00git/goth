@@ -1,17 +1,17 @@
 package routes
 
 import (
-	"net/http"
 	"goth/handlers"
+
+	"github.com/gin-gonic/gin"
 )
 
-func Auth (authHandler *handlers.AuthHandler) http.Handler {
-	mux := http.NewServeMux()
-
-	mux.HandleFunc("POST /auth/signup/", authHandler.Signup)
-	mux.HandleFunc("POST /auth/login/", authHandler.Login)
-	mux.HandleFunc("GET /auth/users/", authHandler.GetUsers)
-	mux.HandleFunc("GET /auth/logout/", authHandler.Logout)
-
-	return mux
+func AuthRoute (router *gin.Engine, authHandler *handlers.AuthHandler) {
+	api := router.Group("/api/auth")
+	{
+		api.POST("/signup", authHandler.Signup)
+		api.POST("/login", authHandler.Login)
+		api.GET("/users", authHandler.GetUsers)
+		api.POST("/logout", authHandler.Logout)
+	}
 }

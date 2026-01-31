@@ -67,7 +67,7 @@ func (h *AuthHandler) Signup (c *gin.Context) {
  	})
 }
 
-func (h *AuthHandler) GetUsersGin (c *gin.Context) {
+func (h *AuthHandler) GetUsers (c *gin.Context) {
 	var users = []models.User{}
 
 	// fetch all users

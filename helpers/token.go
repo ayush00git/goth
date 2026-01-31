@@ -58,4 +58,3 @@ func VerifyToken(tokenString string) (*Claims, error) {
 	}
 	return nil, errors.New("Invalid token")
 }
-

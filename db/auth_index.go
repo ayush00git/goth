@@ -4,7 +4,6 @@ import (
 	"context"
 	"log"
 	"time"
-	"fmt"
 
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/bson"
@@ -34,6 +33,4 @@ func CreateIndex(collection *mongo.Collection) {
 	if err != nil {
 		log.Fatal("Error setting userName as index", err)
 	}
-
-	fmt.Println("Created email and userName index")
 }

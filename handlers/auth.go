@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"time"
 	"strings"
@@ -10,6 +9,7 @@ import (
 	"goth/helpers"
 	"goth/models"
 
+	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -20,164 +20,112 @@ type AuthHandler struct {
 	Collection *mongo.Collection
 }
 
-func (h *AuthHandler) Signup (w http.ResponseWriter, r *http.Request) {
+func (h *AuthHandler) Signup (c *gin.Context) {
+	// get json request
 	var user models.User
-
-	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if err := c.ShouldBindJSON(&user); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
 		return
 	}
 
-	ByteHash, err := bcrypt.GenerateFromPassword([]byte(user.Password), 10)
+	// password hashing
+	hashPass, err := bcrypt.GenerateFromPassword([]byte(user.Password), 10)
 	if err != nil {
-		http.Error(w, "Error generating hash pass", http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error generating hash"})
 		return
 	}
-	hash := string(ByteHash)
 
-	user.Password = hash
-	// setting up default fields
-	user.Role = "user"
+	// save defined fields
+	user.Password = string(hashPass)
 	user.ID = primitive.NewObjectID()
 	user.CreatedAt = time.Now()
+	user.Role = "user"
 
 	_, err = h.Collection.InsertOne(context.TODO(), user)
 	if err != nil {
 		if mongo.IsDuplicateKeyError(err) {
 			if strings.Contains(err.Error(), "email") {
-				http.Error(w, "User with email already exists", http.StatusConflict)
+				c.JSON(http.StatusConflict, gin.H{"error": "User with that email already exists"})
 				return
 			}
 			if strings.Contains(err.Error(), "userName") {
-				http.Error(w, "That username is already taken", http.StatusConflict)
+				c.JSON(http.StatusConflict, gin.H{"error": "That username is already taken"})
 				return
 			}
 		}
-		http.Error(w, "Error creating user", http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error saving to database"})
 		return
 	}
 
-	response := map[string]interface{} {
-		"success": "true",
-		"message": "User created successfully!",
-		"user": map[string]string{
+	c.JSON(http.StatusCreated, gin.H{
+		"success": "Signup success!",
+		"user": map[string]interface{} {
 			"userName": user.UserName,
 			"email": user.Email,
 			"role": user.Role,
 		},
-	}
-	
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, "Error encoding the response", http.StatusInternalServerError)
-		return
-	}
+ 	})
 }
 
-func (h *AuthHandler) GetUsers (w http.ResponseWriter, r *http.Request) {
-	users := []models.User{}
+func (h *AuthHandler) GetUsersGin (c *gin.Context) {
+	var users = []models.User{}
 
-	filter := bson.M{}
-	
-	cursor, err := h.Collection.Find(context.TODO(), filter)		// FIND returns a pointer to cursor
+	// fetch all users
+	cursor, err := h.Collection.Find(context.TODO(), bson.M{})		// .Find returns a cursor pointer
 	if err != nil {
-		http.Error(w, "Error fetching users", http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Fetching users from mongodb"})
 		return
 	}
 	defer cursor.Close(context.TODO())
 
+	// We can use the cursor.All() or cursor.Next() to iterate through the documents
 	if err := cursor.All(context.TODO(), &users); err != nil {
-		http.Error(w, "Error decoding users", http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to iterate through at the moment"})
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(users); err != nil {
-		http.Error(w, "Error encoding users", http.StatusInternalServerError)
-		return
-	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": "Users fetched successfully",
+		"users": users,
+	})
 }
 
-func (h *AuthHandler) Login (w http.ResponseWriter, r *http.Request) {
-	var inputs models.User
+func (h *AuthHandler) Login (c *gin.Context) {
+	// get the json request
+	var user models.User
 	var foundUser models.User
-
-	// decoding the req object
-	if err := json.NewDecoder(r.Body).Decode(&inputs); err != nil {
-		http.Error(w, "Error decoding the request", http.StatusInternalServerError)
+	if err := c.ShouldBindJSON(&user); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
 		return
 	}
 
-	// searching if the email entered exists?
-	filter := bson.M{"email": inputs.Email}
+	// finding the user
+	filter := bson.M{"email": user.Email}
 	err := h.Collection.FindOne(context.TODO(), filter).Decode(&foundUser)
 	if err != nil {
-		http.Error(w, "Invalid Credentials", http.StatusBadRequest)
+		c.JSON(http.StatusNotFound, gin.H{"error": "No user found"})
 		return
 	}
-
-	// Validating the passwords
-	err = bcrypt.CompareHashAndPassword([]byte(foundUser.Password), []byte(inputs.Password))
+	
+	// comparing the hash and input password
+	err = bcrypt.CompareHashAndPassword([]byte(foundUser.Password), []byte(user.Password))
 	if err != nil {
-		http.Error(w, "Incorrect credentials", http.StatusUnauthorized)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Incorrect password"})
 		return
-	} 
+	}
 
-	tokenString, err := helpers.GenerateToken(foundUser.ID.Hex(), foundUser.Email, foundUser.UserName, foundUser.Role);
+	// generate a JWT token
+	tokenString, err := helpers.GenerateToken(foundUser.ID.Hex(), foundUser.Email, foundUser.UserName, foundUser.Role)
 	if err != nil {
-		http.Error(w, "Error in generating a token", http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "generating a jwt token"})
 		return
 	}
 
-	http.SetCookie(w, &http.Cookie{
-		Name: "token",
-		Value: tokenString,
-		Path: "/",
-		HttpOnly: true,
-		Secure: false,
-		SameSite: http.SameSiteLaxMode,
-		Expires: time.Now().Add(24 * time.Hour),
-	})
-
-	response := map[string]interface{} {
-		"success": true,
-		"message": "Logged in successfully!",
-		"user": map[string]string{
-			"userName": foundUser.UserName,
-			"email": foundUser.Email,
-			"role": foundUser.Role,
-		},
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, "Error encoding the response", http.StatusInternalServerError)
-		return
-	}
+	c.SetCookie("token", tokenString, 3600, "/", "localhost", false, true)		// c.SetCookie(Name, Value, MaxAge, Path, Domain, Secure, HttpOnly)
+	c.JSON(http.StatusOK, gin.H{"success": "Logged In successfully!"})
 }
 
-func (h *AuthHandler) Logout (w http.ResponseWriter, r *http.Request) {
-	http.SetCookie(w, &http.Cookie{
-		Name: "token",
-		Value: " ",
-		Path: "/",
-		Expires: time.Unix(0, 0),
-		HttpOnly: true,
-		MaxAge: -1,
-	})
-
-	response := map[string]interface{} {
-		"status": "success",
-		"message": "Logged out successfully!",
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, "Error encoding the response", http.StatusInternalServerError)
-		return
-	}
+func (h *AuthHandler) Logout (c *gin.Context) {
+	c.SetCookie("token", " ", -1, "/", "localhost", false, true)
+	c.JSON(http.StatusOK, gin.H{"success": "Logged out successfully!"})
 }

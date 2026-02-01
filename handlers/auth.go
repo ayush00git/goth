@@ -5,7 +5,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
+	"fmt"
+	
 	"goth/helpers"
 	"goth/middlewares"
 	"goth/models"
@@ -41,6 +42,21 @@ func (h *AuthHandler) Signup (c *gin.Context) {
 	user.ID = primitive.NewObjectID()
 	user.CreatedAt = time.Now()
 	user.Role = "user"
+	user.IsVerified = false
+
+	userEmail := user.Email
+	emailSubject := "Verifing the account"
+	emailBody := "<h1>Welcome!</h1><p>Thanks for signing up.</p>"
+
+	// spawn a background worker to send email
+	go func(){
+		err := helpers.SendEmail(userEmail, emailSubject, emailBody)
+		if err != nil {
+			fmt.Printf("Error sending the email to %s\n%s", userEmail, err)
+		} else {
+			fmt.Printf("Email sent to %s", userEmail)
+		}
+	}()
 
 	_, err = h.Collection.InsertOne(context.TODO(), user)
 	if err != nil {
@@ -59,7 +75,7 @@ func (h *AuthHandler) Signup (c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
-		"success": "Signup success!",
+		"success": "Check your mail inbox for verifying your email",
 		"user": map[string]interface{} {
 			"userName": user.UserName,
 			"email": user.Email,

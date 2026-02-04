@@ -15,6 +15,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -50,7 +51,7 @@ func (h *AuthHandler) Signup (c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error generating token"})
 		return
 	}
-	VerificationURL := fmt.Sprintf(`http://localhost:8080/verify?token=` + tokenString)
+	VerificationURL := fmt.Sprintf(`http://localhost:8080/api/auth/verify?token=%s`, tokenString)
 
 	// email's preq
 	userEmail := user.Email
@@ -178,8 +179,30 @@ func (h *AuthHandler) VerifyEmail (c *gin.Context) {
 	// verify the tokenString
 	claims, err := helpers.VerifyToken(tokenString)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token res"})
 		return
 	}
-	fmt.Printf(claims.UserID)
+
+	var updatedUser models.User
+
+	filter := bson.M{"email": claims.Email}
+	update := bson.M{
+		"$set": bson.M{
+			"isVerified": true,
+		},
+	}
+
+	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
+
+	err = h.Collection.FindOneAndUpdate(context.TODO(), filter, update, opts).Decode(&updatedUser)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error iterating"})
+		return
+	}
+	
+	c.JSON(http.StatusOK, gin.H{"success": "Account verified successfully!"})
 }

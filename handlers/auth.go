@@ -5,7 +5,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
+	"fmt"
+	
 	"goth/helpers"
 	"goth/middlewares"
 	"goth/models"
@@ -14,6 +15,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -41,6 +43,34 @@ func (h *AuthHandler) Signup (c *gin.Context) {
 	user.ID = primitive.NewObjectID()
 	user.CreatedAt = time.Now()
 	user.Role = "user"
+	user.IsVerified = false
+
+	// generating a token to send in email
+	tokenString, err := helpers.GenerateToken(user.ID.Hex(), user.Email, user.UserName, user.Role)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error generating token"})
+		return
+	}
+	VerificationURL := fmt.Sprintf(`http://localhost:8080/api/auth/verify?token=%s`, tokenString)
+
+	// email's preq
+	userEmail := user.Email
+	emailSubject := "Verifing the account"
+	emailBody := fmt.Sprintf(`
+	<h1>Welcome!</h1><p>Thanks for signing up.</p>
+	</br>
+	<a href="%s" target="_blank">Verify</a>
+	`, VerificationURL)
+
+	// spawn a background worker to send email
+	go func(){
+		err := helpers.SendEmail(userEmail, emailSubject, emailBody)
+		if err != nil {
+			fmt.Printf("Error sending the email to %s\n%s", userEmail, err)
+		} else {
+			fmt.Printf("Email sent to %s", userEmail)
+		}
+	}()
 
 	_, err = h.Collection.InsertOne(context.TODO(), user)
 	if err != nil {
@@ -59,7 +89,7 @@ func (h *AuthHandler) Signup (c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
-		"success": "Signup success!",
+		"success": "Check your mail inbox for verifying your email",
 		"user": map[string]interface{} {
 			"userName": user.UserName,
 			"email": user.Email,
@@ -139,4 +169,40 @@ func (h *AuthHandler) Login (c *gin.Context) {
 func (h *AuthHandler) Logout (c *gin.Context) {
 	c.SetCookie("token", " ", -1, "/", "localhost", false, true)
 	c.JSON(http.StatusOK, gin.H{"success": "Logged out successfully!"})
+}
+
+func (h *AuthHandler) VerifyEmail (c *gin.Context) {
+	
+	// get token from query parameters
+	tokenString := c.Query("token")
+
+	// verify the tokenString
+	claims, err := helpers.VerifyToken(tokenString)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token res"})
+		return
+	}
+
+	var updatedUser models.User
+
+	filter := bson.M{"email": claims.Email}
+	update := bson.M{
+		"$set": bson.M{
+			"isVerified": true,
+		},
+	}
+
+	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
+
+	err = h.Collection.FindOneAndUpdate(context.TODO(), filter, update, opts).Decode(&updatedUser)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error iterating"})
+		return
+	}
+	
+	c.JSON(http.StatusOK, gin.H{"success": "Account verified successfully!"})
 }

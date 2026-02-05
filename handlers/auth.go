@@ -57,10 +57,52 @@ func (h *AuthHandler) Signup (c *gin.Context) {
 	userEmail := user.Email
 	emailSubject := "Verifing the account"
 	emailBody := fmt.Sprintf(`
-	<h1>Welcome!</h1><p>Thanks for signing up.</p>
-	</br>
-	<a href="%s" target="_blank">Verify</a>
-	`, VerificationURL)
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Verify your email</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 0; }
+        .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 20px; text-align: center; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .header { color: #333333; font-size: 24px; margin-bottom: 20px; }
+        .text { color: #666666; font-size: 16px; line-height: 1.5; margin-bottom: 30px; }
+        /* Improved Button Styles */
+        .btn { 
+            display: inline-block; 
+            background-color: #007bff; 
+            color: #ffffff !important; /* Forces white text */
+            padding: 14px 28px; 
+            font-size: 18px; 
+            font-weight: bold; 
+            text-decoration: none; 
+            border-radius: 5px; 
+        }
+        .btn:hover { background-color: #0056b3; }
+        .footer { margin-top: 30px; font-size: 12px; color: #999999; }
+    </style>
+</head>
+<body>
+    <div style="padding: 40px 0;">
+        <table class="container" role="presentation" cellspacing="0" cellpadding="0" border="0" align="center">
+            <tr>
+                <td>
+                    <h1 class="header">Welcome to Goth!</h1>
+                    <p class="text">
+                        Thanks for signing up. Please click the button below to verify your email address and activate your account.
+                    </p>
+                    
+                    <a href="%s" class="btn">Verify Email</a>
+                    
+                </td>
+            </tr>
+        </table>
+        <div style="text-align: center; margin-top: 20px;" class="footer">
+            &copy; %d Goth Service. All rights reserved.
+        </div>
+    </div>
+</body>
+</html>	`, VerificationURL, time.Now().Year())
 
 	// spawn a background worker to send email
 	go func(){

@@ -15,3 +15,6 @@ this command generates two files =>
 client stub defines how the client would call the methods
 server stub defines how the server would implement the methods
 server stub also contains the mustEmbedUnimplemented method to all server interface methods to handle forward compatibility.
+
+also contains the registrar that registers our server with the grpc server
+contains the handlers which maps the incoming request from the client to the specific function.

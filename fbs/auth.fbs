@@ -1,0 +1,67 @@
+namespace auth;
+
+table User {
+  id:string;
+  user_name:string;
+  email:string;
+  role:string;
+  password:string;
+  is_verified:bool;
+  created_at:string;
+}
+
+table SignupRequest {
+  user_name:string;
+  email:string;
+  password:string;
+}
+
+table SignupResponse {
+  message:string;
+  user:User;
+}
+
+table LoginRequest {
+  email:string;
+  password:string;
+}
+
+table LoginResponse {
+  message:string;
+  token:string;
+}
+
+table LogoutRequest {}
+
+table LogoutResponse {
+  message:string;
+}
+
+table VerifyEmailRequest {
+  token:string;
+}
+
+table VerifyEmailResponse {
+  message:string;
+}
+
+table GetUsersRequest {}
+
+table GetUsersResponse {
+  message:string;
+  requested_by:string;
+  users:[User];
+}
+
+rpc_service AuthService {
+  Signup(SignupRequest):SignupResponse;
+  Login(LoginRequest):LoginResponse;
+  Logout(LogoutRequest):LogoutResponse;
+  VerifyEmail(VerifyEmailRequest):VerifyEmailResponse;
+  GetUsers(GetUsersRequest):GetUsersResponse;
+}
+
+root_type User;
+
+// to generate code from this file
+// ❯ flatc --go --grpc fbs/auth.fbs

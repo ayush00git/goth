@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package auth;
+
+
+
+option go_package = "goth/proto";
+
+message User {
+  string id = 1;
+  string user_name = 2;
+  string email = 3;
+  string role = 4;
+  string password = 5;
+  bool is_verified = 6;
+  string created_at = 7;
+}
+
+message SignupRequest {
+  string user_name = 1;
+  string email = 2;
+  string password = 3;
+}
+
+message SignupResponse {
+  string message = 1;
+  User user = 2;
+}
+
+message LoginRequest {
+  string email = 1;
+  string password = 2;
+}
+
+message LoginResponse {
+  string message = 1;
+  string token = 2;
+}
+
+message LogoutRequest {}
+
+message LogoutResponse {
+  string message = 1;
+}
+
+message VerifyEmailRequest {
+  string token = 1;
+}
+
+message VerifyEmailResponse {
+  string message = 1;
+}
+
+message GetUsersRequest {}
+
+message GetUsersResponse {
+  string message = 1;
+  string requested_by = 2;
+  repeated User users = 3;
+}
+
+service AuthService {
+  rpc Signup(SignupRequest) returns (SignupResponse);
+  rpc Login(LoginRequest) returns (LoginResponse);
+  rpc Logout(LogoutRequest) returns (LogoutResponse);
+  rpc VerifyEmail(VerifyEmailRequest) returns (VerifyEmailResponse);
+  rpc GetUsers(GetUsersRequest) returns (GetUsersResponse);
+}

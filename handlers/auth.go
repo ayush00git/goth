@@ -189,6 +189,10 @@ func (h *AuthHandler) Login (c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "No user found"})
 		return
 	}
+	if foundUser.UserName != user.UserName {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid username"})
+		return
+	}
 	
 	// comparing the hash and input password
 	err = bcrypt.CompareHashAndPassword([]byte(foundUser.Password), []byte(user.Password))

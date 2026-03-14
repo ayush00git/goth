@@ -19,22 +19,32 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AuthService_Signup_FullMethodName      = "/auth.AuthService/Signup"
-	AuthService_Login_FullMethodName       = "/auth.AuthService/Login"
-	AuthService_Logout_FullMethodName      = "/auth.AuthService/Logout"
-	AuthService_VerifyEmail_FullMethodName = "/auth.AuthService/VerifyEmail"
-	AuthService_GetUsers_FullMethodName    = "/auth.AuthService/GetUsers"
+	AuthService_Signup_FullMethodName           = "/auth.AuthService/Signup"
+	AuthService_Login_FullMethodName            = "/auth.AuthService/Login"
+	AuthService_Logout_FullMethodName           = "/auth.AuthService/Logout"
+	AuthService_VerifyEmail_FullMethodName      = "/auth.AuthService/VerifyEmail"
+	AuthService_GetUsers_FullMethodName         = "/auth.AuthService/GetUsers"
+	AuthService_WatchSessions_FullMethodName    = "/auth.AuthService/WatchSessions"
+	AuthService_BulkRevokeTokens_FullMethodName = "/auth.AuthService/BulkRevokeTokens"
+	AuthService_AuditStream_FullMethodName      = "/auth.AuthService/AuditStream"
 )
 
 // AuthServiceClient is the client API for AuthService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AuthServiceClient interface {
+	// unary
 	Signup(ctx context.Context, in *SignupRequest, opts ...grpc.CallOption) (*SignupResponse, error)
 	Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*LoginResponse, error)
 	Logout(ctx context.Context, in *LogoutRequest, opts ...grpc.CallOption) (*LogoutResponse, error)
 	VerifyEmail(ctx context.Context, in *VerifyEmailRequest, opts ...grpc.CallOption) (*VerifyEmailResponse, error)
 	GetUsers(ctx context.Context, in *GetUsersRequest, opts ...grpc.CallOption) (*GetUsersResponse, error)
+	// server streaming — server pushes session events to client
+	WatchSessions(ctx context.Context, in *WatchSessionsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[SessionEvent], error)
+	// client streaming — client sends many tokens, server revokes all
+	BulkRevokeTokens(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[RevokeTokenRequest, RevokeTokenResponse], error)
+	// bidirectional streaming — live audit log conversation
+	AuditStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AuditRequest, AuditEvent], error)
 }
 
 type authServiceClient struct {
@@ -95,15 +105,67 @@ func (c *authServiceClient) GetUsers(ctx context.Context, in *GetUsersRequest, o
 	return out, nil
 }
 
+func (c *authServiceClient) WatchSessions(ctx context.Context, in *WatchSessionsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[SessionEvent], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &AuthService_ServiceDesc.Streams[0], AuthService_WatchSessions_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[WatchSessionsRequest, SessionEvent]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AuthService_WatchSessionsClient = grpc.ServerStreamingClient[SessionEvent]
+
+func (c *authServiceClient) BulkRevokeTokens(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[RevokeTokenRequest, RevokeTokenResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &AuthService_ServiceDesc.Streams[1], AuthService_BulkRevokeTokens_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[RevokeTokenRequest, RevokeTokenResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AuthService_BulkRevokeTokensClient = grpc.ClientStreamingClient[RevokeTokenRequest, RevokeTokenResponse]
+
+func (c *authServiceClient) AuditStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AuditRequest, AuditEvent], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &AuthService_ServiceDesc.Streams[2], AuthService_AuditStream_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[AuditRequest, AuditEvent]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AuthService_AuditStreamClient = grpc.BidiStreamingClient[AuditRequest, AuditEvent]
+
 // AuthServiceServer is the server API for AuthService service.
 // All implementations must embed UnimplementedAuthServiceServer
 // for forward compatibility.
 type AuthServiceServer interface {
+	// unary
 	Signup(context.Context, *SignupRequest) (*SignupResponse, error)
 	Login(context.Context, *LoginRequest) (*LoginResponse, error)
 	Logout(context.Context, *LogoutRequest) (*LogoutResponse, error)
 	VerifyEmail(context.Context, *VerifyEmailRequest) (*VerifyEmailResponse, error)
 	GetUsers(context.Context, *GetUsersRequest) (*GetUsersResponse, error)
+	// server streaming — server pushes session events to client
+	WatchSessions(*WatchSessionsRequest, grpc.ServerStreamingServer[SessionEvent]) error
+	// client streaming — client sends many tokens, server revokes all
+	BulkRevokeTokens(grpc.ClientStreamingServer[RevokeTokenRequest, RevokeTokenResponse]) error
+	// bidirectional streaming — live audit log conversation
+	AuditStream(grpc.BidiStreamingServer[AuditRequest, AuditEvent]) error
 	mustEmbedUnimplementedAuthServiceServer()
 }
 
@@ -128,6 +190,15 @@ func (UnimplementedAuthServiceServer) VerifyEmail(context.Context, *VerifyEmailR
 }
 func (UnimplementedAuthServiceServer) GetUsers(context.Context, *GetUsersRequest) (*GetUsersResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetUsers not implemented")
+}
+func (UnimplementedAuthServiceServer) WatchSessions(*WatchSessionsRequest, grpc.ServerStreamingServer[SessionEvent]) error {
+	return status.Error(codes.Unimplemented, "method WatchSessions not implemented")
+}
+func (UnimplementedAuthServiceServer) BulkRevokeTokens(grpc.ClientStreamingServer[RevokeTokenRequest, RevokeTokenResponse]) error {
+	return status.Error(codes.Unimplemented, "method BulkRevokeTokens not implemented")
+}
+func (UnimplementedAuthServiceServer) AuditStream(grpc.BidiStreamingServer[AuditRequest, AuditEvent]) error {
+	return status.Error(codes.Unimplemented, "method AuditStream not implemented")
 }
 func (UnimplementedAuthServiceServer) mustEmbedUnimplementedAuthServiceServer() {}
 func (UnimplementedAuthServiceServer) testEmbeddedByValue()                     {}
@@ -240,6 +311,31 @@ func _AuthService_GetUsers_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_WatchSessions_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(WatchSessionsRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(AuthServiceServer).WatchSessions(m, &grpc.GenericServerStream[WatchSessionsRequest, SessionEvent]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AuthService_WatchSessionsServer = grpc.ServerStreamingServer[SessionEvent]
+
+func _AuthService_BulkRevokeTokens_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(AuthServiceServer).BulkRevokeTokens(&grpc.GenericServerStream[RevokeTokenRequest, RevokeTokenResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AuthService_BulkRevokeTokensServer = grpc.ClientStreamingServer[RevokeTokenRequest, RevokeTokenResponse]
+
+func _AuthService_AuditStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(AuthServiceServer).AuditStream(&grpc.GenericServerStream[AuditRequest, AuditEvent]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AuthService_AuditStreamServer = grpc.BidiStreamingServer[AuditRequest, AuditEvent]
+
 // AuthService_ServiceDesc is the grpc.ServiceDesc for AuthService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -268,6 +364,23 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_GetUsers_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "WatchSessions",
+			Handler:       _AuthService_WatchSessions_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "BulkRevokeTokens",
+			Handler:       _AuthService_BulkRevokeTokens_Handler,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "AuditStream",
+			Handler:       _AuthService_AuditStream_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+	},
 	Metadata: "proto/auth.proto",
 }

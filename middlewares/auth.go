@@ -4,15 +4,15 @@ import (
 	"net/http"
 	"strings"
 
-	"goth/helpers"
+	"github.com/ayush00git/goth/helpers"
 
 	"github.com/gin-gonic/gin"
 )
 
 // context keys
 const (
-	UserIDKey = "userID"
-	RoleIDKey = "role"
+	UserIDKey   = "userID"
+	RoleIDKey   = "role"
 	UserNameKey = "userName"
 )
 

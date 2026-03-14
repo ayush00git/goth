@@ -1,4 +1,4 @@
-module goth
+module github.com/ayush00git/goth
 
 go 1.25.5
 

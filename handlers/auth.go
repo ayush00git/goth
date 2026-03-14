@@ -2,14 +2,14 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
-	"fmt"
-	
-	"goth/helpers"
-	"goth/middlewares"
-	"goth/models"
+
+	"github.com/ayush00git/goth/helpers"
+	"github.com/ayush00git/goth/middlewares"
+	"github.com/ayush00git/goth/models"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
@@ -23,7 +23,7 @@ type AuthHandler struct {
 	Collection *mongo.Collection
 }
 
-func (h *AuthHandler) Signup (c *gin.Context) {
+func (h *AuthHandler) Signup(c *gin.Context) {
 	// get json request
 	var user models.User
 	if err := c.ShouldBindJSON(&user); err != nil {
@@ -87,7 +87,7 @@ func (h *AuthHandler) Signup (c *gin.Context) {
         <table class="container" role="presentation" cellspacing="0" cellpadding="0" border="0" align="center">
             <tr>
                 <td>
-                    <h1 class="header">Welcome to Goth!</h1>
+                    <h1 class="header">Welcome to github.com/ayush00git/goth!</h1>
                     <p class="text">
                         Thanks for signing up. Please click the button below to verify your email address and activate your account.
                     </p>
@@ -98,14 +98,14 @@ func (h *AuthHandler) Signup (c *gin.Context) {
             </tr>
         </table>
         <div style="text-align: center; margin-top: 20px;" class="footer">
-            &copy; %d Goth Service. All rights reserved.
+            &copy; %d github.com/ayush00git/goth Service. All rights reserved.
         </div>
     </div>
 </body>
 </html>	`, VerificationURL, time.Now().Year())
 
 	// spawn a background worker to send email
-	go func(){
+	go func() {
 		err := helpers.SendEmail(userEmail, emailSubject, emailBody)
 		if err != nil {
 			fmt.Printf("Error sending the email to %s\n%s", userEmail, err)
@@ -132,15 +132,15 @@ func (h *AuthHandler) Signup (c *gin.Context) {
 
 	c.JSON(http.StatusCreated, gin.H{
 		"success": "Check your mail inbox for verifying your email",
-		"user": map[string]interface{} {
+		"user": map[string]interface{}{
 			"userName": user.UserName,
-			"email": user.Email,
-			"role": user.Role,
+			"email":    user.Email,
+			"role":     user.Role,
 		},
- 	})
+	})
 }
 
-func (h *AuthHandler) GetUsers (c *gin.Context) {
+func (h *AuthHandler) GetUsers(c *gin.Context) {
 
 	val, exists := c.Get(middlewares.UserNameKey)
 	if !exists {
@@ -148,12 +148,12 @@ func (h *AuthHandler) GetUsers (c *gin.Context) {
 		return
 	}
 
-	userName := val.(string)		// typecasting from interface{} to string
+	userName := val.(string) // typecasting from interface{} to string
 
 	var users = []models.User{}
 
 	// fetch all users
-	cursor, err := h.Collection.Find(context.TODO(), bson.M{})		// .Find returns a cursor pointer
+	cursor, err := h.Collection.Find(context.TODO(), bson.M{}) // .Find returns a cursor pointer
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Fetching users from mongodb"})
 		return
@@ -167,13 +167,13 @@ func (h *AuthHandler) GetUsers (c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"success": "Users fetched successfully",
+		"success":      "Users fetched successfully",
 		"requested_by": userName,
-		"users": users,
+		"users":        users,
 	})
 }
 
-func (h *AuthHandler) Login (c *gin.Context) {
+func (h *AuthHandler) Login(c *gin.Context) {
 	// get the json request
 	var user models.User
 	var foundUser models.User
@@ -193,7 +193,7 @@ func (h *AuthHandler) Login (c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid username"})
 		return
 	}
-	
+
 	// comparing the hash and input password
 	err = bcrypt.CompareHashAndPassword([]byte(foundUser.Password), []byte(user.Password))
 	if err != nil {
@@ -208,17 +208,17 @@ func (h *AuthHandler) Login (c *gin.Context) {
 		return
 	}
 
-	c.SetCookie("token", tokenString, 3600, "/", "localhost", false, true)		// c.SetCookie(Name, Value, MaxAge, Path, Domain, Secure, HttpOnly)
+	c.SetCookie("token", tokenString, 3600, "/", "localhost", false, true) // c.SetCookie(Name, Value, MaxAge, Path, Domain, Secure, HttpOnly)
 	c.JSON(http.StatusOK, gin.H{"success": "Logged In successfully!"})
 }
 
-func (h *AuthHandler) Logout (c *gin.Context) {
+func (h *AuthHandler) Logout(c *gin.Context) {
 	c.SetCookie("token", " ", -1, "/", "localhost", false, true)
 	c.JSON(http.StatusOK, gin.H{"success": "Logged out successfully!"})
 }
 
-func (h *AuthHandler) VerifyEmail (c *gin.Context) {
-	
+func (h *AuthHandler) VerifyEmail(c *gin.Context) {
+
 	// get token from query parameters
 	tokenString := c.Query("token")
 
@@ -249,6 +249,6 @@ func (h *AuthHandler) VerifyEmail (c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error iterating"})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{"success": "Account verified successfully!"})
 }

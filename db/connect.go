@@ -2,17 +2,17 @@ package db
 
 import (
 	"context"
-	"time"
-	"log"
 	"fmt"
+	"log"
+	"time"
 
-	"goth/helpers"
+	"github.com/ayush00git/goth/helpers"
 
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-func ConnectMongoDB (collection string) *mongo.Collection {
+func ConnectMongoDB(collection string) *mongo.Collection {
 	uri := helpers.GetEnvVar("MONGO_URI")
 
 	// context, client, ping
@@ -29,6 +29,6 @@ func ConnectMongoDB (collection string) *mongo.Collection {
 	}
 	fmt.Printf("Connection to MongoDB established")
 
-	collec := client.Database("goth").Collection(collection)
-	return collec 
+	collec := client.Database("github.com/ayush00git/goth").Collection(collection)
+	return collec
 }

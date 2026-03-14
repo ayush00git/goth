@@ -1,13 +1,13 @@
 package routes
 
 import (
-	"goth/handlers"
-	"goth/middlewares"
+	"github.com/ayush00git/goth/handlers"
+	"github.com/ayush00git/goth/middlewares"
 
 	"github.com/gin-gonic/gin"
 )
 
-func AuthRoute (router *gin.Engine, authHandler *handlers.AuthHandler) {
+func AuthRoute(router *gin.Engine, authHandler *handlers.AuthHandler) {
 	api := router.Group("/api/auth")
 	{
 		api.POST("/signup", authHandler.Signup)

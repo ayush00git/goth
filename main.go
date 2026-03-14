@@ -3,9 +3,9 @@ package main
 import (
 	"log"
 
-	"goth/handlers"
-	"goth/routes"
-	"goth/db"
+	"github.com/ayush00git/goth/db"
+	"github.com/ayush00git/goth/handlers"
+	"github.com/ayush00git/goth/routes"
 
 	"github.com/gin-gonic/gin"
 )

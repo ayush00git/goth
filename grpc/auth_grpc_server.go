@@ -12,6 +12,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/bson"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
@@ -97,5 +98,62 @@ func (s *AuthGRPCServer) Login (ctx context.Context, req *pb.LoginRequest) (*pb.
 	return &pb.LoginResponse{
 		Message: "Logged in successfully!",
 		Token: tokenString,
+	}, nil
+}
+
+func (s *AuthGRPCServer) Logout (ctx context.Context, req *pb.LogoutRequest) (*pb.LogoutResponse, error) {
+	return &pb.LogoutResponse{
+		Message: "Logged out successfully!",
+	}, nil
+}
+
+func (s *AuthGRPCServer) VerifyEmail (ctx context.Context, req *pb.VerifyEmailRequest) (*pb.VerifyEmailResponse, error) {
+	claims, err := helpers.VerifyToken(req.Token)
+	if err != nil {
+		return nil, status.Error(codes.Unauthenticated, "invalid token")
+	}
+
+	var updatedUser models.User
+
+	filter := bson.M{"email": claims.Email}
+	update := bson.M{"$set": bson.M{"is_verified": true}}
+	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
+
+	err = s.Collection.FindOneAndUpdate(ctx, filter, update, opts).Decode(&updatedUser)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "error updating user")
+	}
+
+	return &pb.VerifyEmailResponse{
+		Message: "Email verified successfully!",
+	}, nil 
+}
+
+func (s *AuthGRPCServer) GetUsers(ctx context.Context, req *pb.GetUsersRequest) (*pb.GetUsersResponse, error) {
+	var users []models.User
+	cursor, err := s.Collection.Find(ctx, bson.M{})
+	if err != nil {
+		return nil, status.Error(codes.Internal, "error fetching users")
+	}
+	defer cursor.Close(ctx)
+
+	if err := cursor.All(ctx, &users); err != nil {
+		return nil, status.Error(codes.Internal, "error decoding users")
+	}
+
+	var pbUsers []*pb.User
+	for _, u := range users {
+		pbUsers = append(pbUsers, &pb.User{
+			Id: 			u.ID.Hex(),
+			UserName: 		u.UserName,
+			Email: 			u.Email,
+			Role: 			u.Email,
+			IsVerified: 	u.IsVerified,
+		})
+	}
+
+	return &pb.GetUsersResponse{
+		Message: "Users fetched successfully!",
+		Users: pbUsers,
 	}, nil
 }

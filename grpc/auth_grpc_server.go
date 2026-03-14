@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"io"
 	"time"
+	"log"
 
 	"github.com/ayush00git/goth/helpers"
 	"github.com/ayush00git/goth/models"
@@ -85,7 +87,7 @@ func (s *AuthGRPCServer) Login (ctx context.Context, req *pb.LoginRequest) (*pb.
 		return nil, status.Error(codes.NotFound, "email not found")
 	}
 
-	err = bcrypt.CompareHashAndPassword([]byte(req.Password), []byte(foundUser.Password));
+	err = bcrypt.CompareHashAndPassword([]byte(foundUser.Password), []byte(req.Password));
 	if err != nil {
 		return nil, status.Error(codes.Unauthenticated, "incorrect password")
 	}
@@ -156,4 +158,110 @@ func (s *AuthGRPCServer) GetUsers(ctx context.Context, req *pb.GetUsersRequest) 
 		Message: "Users fetched successfully!",
 		Users: pbUsers,
 	}, nil
+}
+
+//server streaming
+func (s *AuthGRPCServer) WatchSessions(req *pb.WatchSessionsRequest, stream pb.AuthService_WatchSessionsServer) error {
+	// Notice: no context.Context param — it's on stream.Context()
+	// Notice: no return value other than error — you send via stream.Send()
+
+	log.Printf("Client subscribed to sessions for user: %s", req.UserId)
+
+	// Simulate session events being pushed over time.
+	// In production: tail a MongoDB change stream, read from a Redis pub/sub, etc.
+	events := []pb.SessionEvent{
+		{EventType: "login",   SessionId: "sess_001", IpAddress: "192.168.1.1", OccurredAt: time.Now().Format(time.RFC3339)},
+		{EventType: "login",   SessionId: "sess_002", IpAddress: "10.0.0.5",    OccurredAt: time.Now().Format(time.RFC3339)},
+		{EventType: "expired", SessionId: "sess_001", IpAddress: "192.168.1.1", OccurredAt: time.Now().Format(time.RFC3339)},
+		{EventType: "logout",  SessionId: "sess_002", IpAddress: "10.0.0.5",    OccurredAt: time.Now().Format(time.RFC3339)},
+	}
+
+	for _, event := range events {
+		// Check if client disconnected before sending each event
+		select {
+		case <-stream.Context().Done():
+			log.Println("Client disconnected from WatchSessions")
+			return nil
+		default:
+		}
+
+		if err := stream.Send(&event); err != nil {
+			return status.Errorf(codes.Internal, "error sending event: %v", err)
+		}
+
+		time.Sleep(1 * time.Second) // simulate events arriving over time
+	}
+
+	return nil // closing this = server says "stream is done"
+}
+
+// client streaming
+// ```
+// grpcurl -plaintext -d '
+// {"token": "tok_aaa"}
+// {"token": "tok_bbb"}
+// {"token": "tok_ccc"}
+// ' localhost:50051 auth.AuthService/BulkRevokeTokens
+// ```
+func (s *AuthGRPCServer) BulkRevokeTokens(stream pb.AuthService_BulkRevokeTokensServer) error {
+	// Notice: no request param — you receive via stream.Recv()
+	// Notice: you reply ONCE at the end via stream.SendAndClose()
+
+	revokedCount := int32(0)
+
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF {
+			// Client closed their side — send the single response back
+			return stream.SendAndClose(&pb.RevokeTokenResponse{
+				RevokedCount: revokedCount,
+			})
+		}
+		if err != nil {
+			return status.Errorf(codes.Internal, "error receiving token: %v", err)
+		}
+
+		// In production: add token to a blacklist in Redis, mark in DB, etc.
+		log.Printf("Revoking token: %s", req.Token)
+		revokedCount++
+	}
+}
+
+// Bidirectional-streaming
+// ```
+// grpcurl -plaintext -d '
+// {"action": "who_logged_in", "payload": "last_24h"}
+// {"action": "list_sessions",  "payload": "user_abc"}
+// {"action": "failed_logins",  "payload": "user_abc"}
+// ' localhost:50051 auth.AuthService/AuditStream
+// 
+// ```
+
+func (s *AuthGRPCServer) AuditStream(stream pb.AuthService_AuditStreamServer) error {
+	// Both sides can send/receive concurrently.
+	// Pattern: read client messages in a loop, respond to each one.
+
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF {
+			return nil // client closed their side, we're done
+		}
+		if err != nil {
+			return status.Errorf(codes.Internal, "recv error: %v", err)
+		}
+
+		log.Printf("Audit action received: %s | payload: %s", req.Action, req.Payload)
+
+		// Build a response for each incoming message
+		description := fmt.Sprintf("Processed action '%s' with payload '%s'", req.Action, req.Payload)
+
+		event := &pb.AuditEvent{
+			Description: description,
+			Timestamp:   time.Now().Format(time.RFC3339),
+		}
+
+		if err := stream.Send(event); err != nil {
+			return status.Errorf(codes.Internal, "send error: %v", err)
+		}
+	}
 }

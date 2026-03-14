@@ -29,6 +29,6 @@ func ConnectMongoDB(collection string) *mongo.Collection {
 	}
 	fmt.Printf("Connection to MongoDB established")
 
-	collec := client.Database("github.com/ayush00git/goth").Collection(collection)
+	collec := client.Database("goth").Collection(collection)
 	return collec
 }

@@ -1,0 +1,170 @@
+package goth;
+
+enum MFAType {
+    NONE = 0;
+    TOTP = 1;
+    EMAIL_OTP = 2;
+}
+
+enum TokenType {
+    ACCESS = 0;
+    REFRESH = 1;
+}
+
+enum OTPPurpose {
+    MFA = 0;
+    PASSWORD_RESET = 1;
+    EMAIL_VERIFY = 2;
+}
+
+// fory uses type-ids internally to know which class to deserialize into across languages
+// type-ids below 100 are registered by fory for the built-in classes
+message SignupRequest [id=100] {
+    string email = 1;
+    string password = 2;
+    string full_name = 3;
+}
+
+message SignupResponse [id=101] {
+    string user_id = 1;
+    string email = 2;
+    bool email_verified = 3;
+}
+
+message LoginRequest [id=102] {
+    string email = 1;
+    string password = 2;
+    string device_fingerprint = 3;
+}
+
+message LoginResponse [id=103] {
+    string access_token = 1;
+    string refresh_token = 2;
+    bool mfa_required = 3;
+    string mfa_session_token = 4;
+    MFAType mfa_type = 5;
+}
+
+message LogoutRequest [id=104] {
+    string refresh_token = 1;
+}
+
+message LogoutResponse [id=105] {
+    bool success = 1;
+}
+
+message RefreshTokenRequest [id=106] {
+    string refresh_token = 1;
+}
+
+message RefreshTokenResponse [id=107] {
+    string access_token = 1;
+    string refresh_token = 2;
+}
+
+message EnableMFARequest [id=108] {
+    string user_id = 1;
+    MFAType mfa_type = 2;
+}
+
+message EnableMFAResponse [id=109] {
+    bool success = 1;
+    string totp_secret = 2;
+    string totp_qr_url = 3;
+    int32 otp_expires_in = 4;
+}
+
+message VerifyMFARequest [id=110] {
+    string mfa_session_token = 1;
+    string code = 2;
+    MFAType mfa_type = 3;
+}
+
+message VerifyMFAResponse [id=111] {
+    string access_token = 1;
+    string refresh_token = 2;
+    bool success = 3;
+}
+
+message DisableMFARequest [id=112] {
+    string user_id = 1;
+    string code = 2;
+}
+
+message DisableMFAResponse [id=113] {
+    bool success = 1;
+}
+
+message SendOTPRequest [id=114] {
+    string email = 1;
+    OTPPurpose purpose = 2;
+}
+
+message SendOTPResponse [id=115] {
+    bool success = 1;
+    int32 expires_in_seconds = 2;
+}
+
+message VerifyOTPRequest [id=116] {
+    string email = 1;
+    string code = 2;
+    OTPPurpose purpose = 3;
+}
+
+message VerifyOTPResponse [id=117] {
+    bool success = 1;
+    string session_token = 2;
+}
+
+message ValidateTokenRequest [id=118] {
+    string access_token = 1;
+}
+
+message ValidateTokenResponse [id=119] {
+    bool valid = 1;
+    string user_id = 2;
+    string email = 3;
+    bool mfa_verified = 4;
+}
+
+message GetUserRequest [id=120] {
+    string user_id = 1;
+}
+
+message GetUserResponse [id=121] {
+    string user_id = 1;
+    string email = 2;
+    string full_name = 3;
+    bool email_verified = 4;
+    MFAType mfa_type = 5;
+    int64 created_at = 6;
+}
+
+message UpdatePasswordRequest [id=122] {
+    string user_id = 1;
+    string old_password = 2;
+    string new_password = 3;
+}
+
+message UpdatePasswordResponse [id=123] {
+    bool success = 1;
+}
+
+service GothService {
+    rpc Signup(SignupRequest) returns (SignupResponse);
+    rpc Login(LoginRequest) returns (LoginResponse);
+    rpc Logout(LogoutRequest) returns (LogoutResponse);
+    rpc RefreshToken(RefreshTokenRequest) returns (RefreshTokenResponse);
+
+    rpc EnableMFA(EnableMFARequest) returns (EnableMFAResponse);
+    rpc VerifyMFA(VerifyMFARequest) returns (VerifyMFAResponse);
+    rpc DisableMFA(DisableMFARequest) returns (DisableMFAResponse);
+
+    rpc SendOTP(SendOTPRequest) returns (SendOTPResponse);
+    rpc VerifyOTP(VerifyOTPRequest) returns (VerifyOTPResponse);
+
+    rpc ValidateToken(ValidateTokenRequest) returns (ValidateTokenResponse);
+
+    rpc GetUser(GetUserRequest) returns (GetUserResponse);
+    rpc UpdatePassword(UpdatePasswordRequest) returns (UpdatePasswordResponse);
+}

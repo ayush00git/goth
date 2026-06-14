@@ -6,12 +6,22 @@ import (
 
 	"github.com/ayush00git/goth/grpc/goth"
 	"github.com/ayush00git/goth/internal/handlers"
+	"github.com/ayush00git/goth/internal/db"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
 
 func main() {
+
+	// connect to database on server initialization
+	db, err := db.New("postgres://ayush00git:ayush00git@localhost:5432/goth?sslmode=disable")
+	if err != nil {
+		log.Fatalf("unable to connect to the database: %v", err)
+	}
+	defer db.Close()
+	log.Println("connected to database")
+
 	// open a raw tcp connection on gRPC default port
 	// this connection just send/receive bytes, encoding
 	// and framing is handled by HTTP2.0 and gRPC-go which

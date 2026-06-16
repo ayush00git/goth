@@ -15,6 +15,9 @@ import (
 func main() {
 
 	// connect to database on server initialization
+	// ** for now we're using unencrypted tcp connections **
+	// ** while deployment install postgres with ssl configurations **
+	// ** to be able to set sslmode=require to use a encrypted tcp **
 	db, err := db.New("postgres://ayush00git:ayush00git@localhost:5432/goth?sslmode=disable")
 	if err != nil {
 		log.Fatalf("unable to connect to the database: %v", err)
@@ -33,7 +36,7 @@ func main() {
 
 	s := grpc.NewServer()
 	// register the gRPC server
-	goth.RegisterGothServiceServer(s, handlers.NewServer())
+	goth.RegisterGothServiceServer(s, handlers.NewServer(db.Pool))
 	reflection.Register(s)	// reflection package helps grpcurl recognize the goth service definitions
 
 	log.Println("Goth server running on port :50051")

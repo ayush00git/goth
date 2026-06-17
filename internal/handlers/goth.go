@@ -5,10 +5,10 @@ import (
 
 	"github.com/ayush00git/goth/grpc/goth"
 
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // embeds the generated grpc server implementation for forward compatibility.
@@ -48,7 +48,8 @@ func (g *GothServer) Signup(ctx context.Context, req *goth.SignupRequest) (*goth
 	err = g.db.QueryRow(
 		ctx,
 		`INSERT INTO USERS (email, password_hash, full_name)
-		VALUES ($1, $2, $3)`,
+		VALUES ($1, $2, $3)
+		RETURNING id`,
 		email,
 		hashedPass,
 		fullName,

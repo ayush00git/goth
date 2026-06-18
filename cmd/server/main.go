@@ -34,9 +34,13 @@ func main() {
 		log.Fatalf("failed listening at port: %v", err)
 	}
 
+	// set grpc.ServerOptions to use fory's custom CodecV2
+	// to use fory as the serialization layer instead of the
+	// default protobuf
 	s := grpc.NewServer(
 		grpc.ForceServerCodecV2(goth.CodecV2{}),
 	)
+	
 	// register the gRPC server
 	goth.RegisterGothServiceServer(s, handlers.NewServer(db.Pool))
 	reflection.Register(s)	// reflection package helps grpcurl recognize the goth service definitions

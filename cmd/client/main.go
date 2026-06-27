@@ -1,8 +1,6 @@
 package main
 
 import (
-	"context"
-	"fmt"
 	"log"
 
 	"github.com/ayush00git/goth/grpc/goth"
@@ -27,16 +25,5 @@ func main() {
 
 	// create the generated client
 	client := goth.NewGothServiceClient(conn)
-	resp, err := client.Signup(context.Background(), &goth.SignupRequest{
-		Email: "test1@gmail.com",
-		FullName: "tester",
-		Password: "tester123",
-	})
-	if err != nil {
-		log.Fatalf("Signup failed: %v", err)
-	}
-
-	fmt.Printf("User ID: %s\n", resp.UserId)
-	fmt.Printf("Email: %s\n", resp.Email)
-	fmt.Printf("Verified: %v\n", resp.EmailVerified)
+	testSignup(client);
 }

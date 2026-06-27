@@ -92,9 +92,9 @@ func (g *GothServer) Login(ctx context.Context, req *goth.LoginRequest) (*goth.L
 		`SELECT id, email, password_hash
 		FROM users
 		WHERE $1 = email`, email,
-	).Scan(&user)
+	).Scan(&user.id, &user.email, &user.password)
 	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to fetch user.")
+		return nil, status.Error(codes.Unauthenticated, "user not found")
 	}
 
 	// match the password

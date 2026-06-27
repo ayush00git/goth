@@ -25,5 +25,6 @@ func main() {
 
 	// create the generated client
 	client := goth.NewGothServiceClient(conn)
-	testSignup(client);
+	// TestSignup(client)
+	TestLogin(client)
 }

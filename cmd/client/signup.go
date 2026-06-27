@@ -7,7 +7,7 @@ import (
 	"github.com/ayush00git/goth/grpc/goth"
 )
 
-func testSignup(c goth.GothServiceClient) {
+func TestSignup(c goth.GothServiceClient) {
 	// create a random number so that email never conflicts
 	randomInt := rand.IntN(9999)
 

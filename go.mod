@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	github.com/apache/fory/go/fory v1.1.0
+	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/jackc/pgx/v5 v5.10.0
 	golang.org/x/crypto v0.48.0
 	google.golang.org/grpc v1.81.1

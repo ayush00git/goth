@@ -1,7 +1,6 @@
 package services
 
 import (
-	"errors"
 	"time"
 
 	"github.com/ayush00git/goth/internal/helpers"
@@ -102,7 +101,10 @@ func RefreshAccessToken(refreshToken string) (string, error) {
 		return "", err
 	}
 
-	claims := token.Claims.(*Claims)
+	claims, ok := token.Claims.(*Claims)
+	if !token.Valid && !ok {
+		return "", err
+	}
 
 	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	accessTokenString, err := accessToken.SignedString([]byte(secretKey))

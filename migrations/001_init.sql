@@ -14,8 +14,8 @@ CREATE TABLE users (
 CREATE TABLE refresh_tokens (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id             UUID REFERENCES users(id),
-    token               UUID DEFAULT gen_random_uuid(),
-    expires_at          TIMESTAMPTZ DEFAULT NOW() + INTERVAL '30 days',
+    jti                 UUID UNIQUE NOT NULL,
+    expires_at          TIMESTAMPTZ DEFAULT NOW() + INTERVAL '1 day',
     revoked             BOOLEAN DEFAULT FALSE,
     device_fingerprint  VARCHAR(255),
     created_at          TIMESTAMPTZ DEFAULT NOW()

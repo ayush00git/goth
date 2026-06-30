@@ -17,7 +17,7 @@ type Claims struct {
 
 // Helper function which generates an access token which helps identifying
 // authorized users at every protected handlers/rpc services.
-func GenerateAccessToken (userId, email string) (string, error) {
+func GenerateAccessToken(userId, email string) (string, error) {
 	// define the claims/payload including the registered claims.
 	claims := Claims{
 		UserID: userId,
@@ -84,4 +84,27 @@ func GenerateRefreshToken(userId, email, fingerprint string) (string, error) {
 	}
 
 	return tokenString, nil
+}
+
+func RefreshAccessToken(refreshToken string) (string, error) {
+	secretKey := []byte("jwuweufwfweif")
+	// validate the refresh token and then pass on those
+	// values to generate a new access token
+	token, err := jwt.ParseWithClaims(refreshToken, &Claims{},
+		func(token *jwt.Token) (interface{}, error) {
+		return secretKey, nil
+		},
+	)
+	if err != nil {
+		return "", err
+	}
+
+	claims := token.Claims.(*Claims)
+
+	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	accessTokenString, err := accessToken.SignedString(secretKey)
+	if err != nil {
+		return "", err
+	}
+	return accessTokenString, nil
 }

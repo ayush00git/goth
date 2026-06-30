@@ -94,6 +94,8 @@ func GenerateRefreshToken(userId, email, fingerprint string) (tokenString string
 	return tokenString, jti, nil
 }
 
+// Helper function which generates a new access token once the old one get expires,
+// it get its claims by validating the refresh token stored in the database.
 func RefreshAccessToken(refreshToken string) (string, error) {
 	refreshSecret := helpers.GetEnvVar("REFRESH_TOKEN_SECRET")
 	accessSecret := helpers.GetEnvVar("ACCESS_TOKEN_SECRET")
@@ -130,4 +132,22 @@ func RefreshAccessToken(refreshToken string) (string, error) {
 		return "", err
 	}
 	return accessTokenString, nil
+}
+
+// Helper function which validates the refresh token, just required using
+// logout to revoke the current stored refresh token
+func ValidateRefreshToken(refreshTokenString string) (jti string, err error) {
+	secretKey := helpers.GetEnvVar("REFRESH_TOKEN_SECRET")
+	refreshToken, err := jwt.ParseWithClaims(refreshTokenString, &Claims{},
+		func(refreshToken *jwt.Token) (interface{}, error) {
+			return []byte(secretKey), nil
+		},
+	)
+
+	claims, ok := refreshToken.Claims.(*Claims)
+	if !ok || !refreshToken.Valid {
+		return "", errors.New("Invalid token")
+	}
+
+	return claims.ID, nil	// claims.ID = jti
 }

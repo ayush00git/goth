@@ -136,18 +136,21 @@ func RefreshAccessToken(refreshToken string) (string, error) {
 
 // Helper function which validates the refresh token, just required using
 // logout to revoke the current stored refresh token
-func ValidateRefreshToken(refreshTokenString string) (jti string, err error) {
+func ValidateRefreshToken(refreshTokenString string) (*Claims, error) {
 	secretKey := helpers.GetEnvVar("REFRESH_TOKEN_SECRET")
 	refreshToken, err := jwt.ParseWithClaims(refreshTokenString, &Claims{},
 		func(refreshToken *jwt.Token) (interface{}, error) {
 			return []byte(secretKey), nil
 		},
 	)
+	if err != nil {
+		return nil, err
+	}	
 
 	claims, ok := refreshToken.Claims.(*Claims)
 	if !ok || !refreshToken.Valid {
-		return "", errors.New("Invalid token")
+		return nil, errors.New("Invalid token")
 	}
 
-	return claims.ID, nil	// claims.ID = jti
+	return claims, nil
 }

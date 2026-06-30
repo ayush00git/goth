@@ -25,14 +25,6 @@ func NewServer(db *pgxpool.Pool) *GothServer {
 	}
 }
 
-// LoginReqBody
-type RequestedUser struct {
-	id			string
-	email		string
-	fullName	string
-	password	string
-}
-
 func (g *GothServer) Signup(ctx context.Context, req *goth.SignupRequest) (*goth.SignupResponse, error) {
 	// inputs from request body
 	email := req.Email

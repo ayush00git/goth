@@ -4,6 +4,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/ayush00git/goth/internal/helpers"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -18,6 +19,7 @@ type Claims struct {
 // Helper function which generates an access token which helps identifying
 // authorized users at every protected handlers/rpc services.
 func GenerateAccessToken(userId, email string) (string, error) {
+	secretKey := helpers.GetEnvVar("ACCESS_TOKEN_SECRET")
 	// define the claims/payload including the registered claims.
 	claims := Claims{
 		UserID: userId,
@@ -32,7 +34,7 @@ func GenerateAccessToken(userId, email string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
 	// sign the token string.
-	tokenString, err := token.SignedString([]byte("jwuweufwfweif"))		// move it to environment variabls after
+	tokenString, err := token.SignedString([]byte(secretKey))
 	if err != nil {
 		return "", err
 	}
@@ -43,7 +45,7 @@ func GenerateAccessToken(userId, email string) (string, error) {
 // Helper function which validates the user's authorization via his access token
 // which allows user's access to protected rpc services.
 func ValidateAccessToken(tokenString string) (*Claims, error) {
-	secretKey := []byte("jwuweufwfweif")	// move to env variables after
+	secretKey := helpers.GetEnvVar("ACCESS_TOKEN_SECRET")
 	// parse the jwt token string.
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{},
 		func(token *jwt.Token) (interface{}, error) {
@@ -58,12 +60,13 @@ func ValidateAccessToken(tokenString string) (*Claims, error) {
 	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
 		return claims, nil
 	}
-	return nil, errors.New("Invalid Token")
+	return nil, err
 }
 
 // Helper function which generates a refresh token which helps re-generating the
 // access tokens, this token is stored in a database and revoked after a specific time.
 func GenerateRefreshToken(userId, email, fingerprint string) (string, error) {
+	secretKey := helpers.GetEnvVar("REFRESH_TOKEN_SECRET")
 	// build the claims object.
 	claims := Claims{
 		UserID: userId,
@@ -71,14 +74,14 @@ func GenerateRefreshToken(userId, email, fingerprint string) (string, error) {
 		DeviceFingerprint: fingerprint,
 		RegisteredClaims: jwt.RegisteredClaims{
 			IssuedAt: jwt.NewNumericDate(time.Now()),
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),		// expiration time - 24 hours
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),	// expiration time - 24 hours
 		},
 	}
 
 	// building the token object with "NewWithClaims"
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
-	tokenString, err := token.SignedString([]byte("euiy348bcues"))	// move it to env vars later.
+	tokenString, err := token.SignedString([]byte(secretKey))
 	if err != nil {
 		return "", err
 	}
@@ -87,7 +90,7 @@ func GenerateRefreshToken(userId, email, fingerprint string) (string, error) {
 }
 
 func RefreshAccessToken(refreshToken string) (string, error) {
-	secretKey := []byte("jwuweufwfweif")
+	secretKey := helpers.GetEnvVar("REFRESH_TOKEN_SECRET")
 	// validate the refresh token and then pass on those
 	// values to generate a new access token
 	token, err := jwt.ParseWithClaims(refreshToken, &Claims{},
@@ -102,7 +105,7 @@ func RefreshAccessToken(refreshToken string) (string, error) {
 	claims := token.Claims.(*Claims)
 
 	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	accessTokenString, err := accessToken.SignedString(secretKey)
+	accessTokenString, err := accessToken.SignedString([]byte(secretKey))
 	if err != nil {
 		return "", err
 	}

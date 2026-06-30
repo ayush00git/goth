@@ -5,20 +5,27 @@ import (
 	"net"
 
 	"github.com/ayush00git/goth/grpc/goth"
-	"github.com/ayush00git/goth/internal/handlers"
 	"github.com/ayush00git/goth/internal/db"
+	"github.com/ayush00git/goth/internal/handlers"
+	"github.com/ayush00git/goth/internal/helpers"
+	"github.com/joho/godotenv"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
 
 func main() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Printf("Error loading environment variables: %v", err.Error())
+	}
 
+	DB_URI := helpers.GetEnvVar("DB_CONN_URI");
 	// connect to database on server initialization
 	// ** for now we're using unencrypted tcp connections **
 	// ** while deployment install postgres with ssl configurations **
 	// ** to be able to set sslmode=require to use a encrypted tcp **
-	db, err := db.New("postgres://ayush00git:ayush00git@localhost:5432/goth?sslmode=disable")
+	db, err := db.New(DB_URI)
 	if err != nil {
 		log.Fatalf("unable to connect to the database: %v", err)
 	}

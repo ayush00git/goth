@@ -8,15 +8,17 @@ import (
 )
 
 func TestLogin(c goth.GothServiceClient) {
-	_, err := c.Login(context.Background(), &goth.LoginRequest{
+	resp, err := c.Login(context.Background(), &goth.LoginRequest{
 		Email: "tester6412@gmail.com",
 		Password: "password123",
-		DeviceFingerprint: "web-chrome",
+		DeviceFingerprint: "web-chrome",	// might use uuid.NewString() to test how flow works for multiple devices
 	})
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Printf("Login Successfull\n")
-	// tokens
+	fmt.Printf("login successfull\n")
+	fmt.Printf("access_token: %s\n", resp.AccessToken)
+	fmt.Printf("refresh_token: %s\n", resp.RefreshToken)
+	// mfa-type
 }

@@ -1,10 +1,12 @@
 package services
 
 import (
+	"errors"
 	"time"
 
 	"github.com/ayush00git/goth/internal/helpers"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 // jwt payload claims
@@ -24,8 +26,9 @@ func GenerateAccessToken(userId, email string) (string, error) {
 		UserID: userId,
 		Email: email,
 		RegisteredClaims: jwt.RegisteredClaims{
-			IssuedAt: jwt.NewNumericDate(time.Now()),
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(15 * time.Minute)),	// expiration time - 15 min
+			Subject:	userId,
+			IssuedAt: 	jwt.NewNumericDate(time.Now()),
+			ExpiresAt: 	jwt.NewNumericDate(time.Now().Add(15 * time.Minute)),	// expiration time - 15 min
 		},
 	}
 	// "token" object with "NewWithClaims" defining the signing
@@ -64,37 +67,41 @@ func ValidateAccessToken(tokenString string) (*Claims, error) {
 
 // Helper function which generates a refresh token which helps re-generating the
 // access tokens, this token is stored in a database and revoked after a specific time.
-func GenerateRefreshToken(userId, email, fingerprint string) (string, error) {
+func GenerateRefreshToken(userId, email, fingerprint string) (tokenString string, jti string, err error) {
 	secretKey := helpers.GetEnvVar("REFRESH_TOKEN_SECRET")
+	jti = uuid.NewString()
 	// build the claims object.
 	claims := Claims{
 		UserID: userId,
 		Email: email,
 		DeviceFingerprint: fingerprint,
 		RegisteredClaims: jwt.RegisteredClaims{
-			IssuedAt: jwt.NewNumericDate(time.Now()),
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),	// expiration time - 24 hours
+			ID:			jti,
+			Subject:	userId,
+			IssuedAt: 	jwt.NewNumericDate(time.Now()),
+			ExpiresAt: 	jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),	// expiration time - 24 hours
 		},
 	}
 
 	// building the token object with "NewWithClaims"
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
-	tokenString, err := token.SignedString([]byte(secretKey))
+	tokenString, err = token.SignedString([]byte(secretKey))
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	return tokenString, nil
+	return tokenString, jti, nil
 }
 
 func RefreshAccessToken(refreshToken string) (string, error) {
-	secretKey := helpers.GetEnvVar("REFRESH_TOKEN_SECRET")
+	refreshSecret := helpers.GetEnvVar("REFRESH_TOKEN_SECRET")
+	accessSecret := helpers.GetEnvVar("ACCESS_TOKEN_SECRET")
 	// validate the refresh token and then pass on those
 	// values to generate a new access token
 	token, err := jwt.ParseWithClaims(refreshToken, &Claims{},
 		func(token *jwt.Token) (interface{}, error) {
-		return secretKey, nil
+		return refreshSecret, nil
 		},
 	)
 	if err != nil {
@@ -102,12 +109,23 @@ func RefreshAccessToken(refreshToken string) (string, error) {
 	}
 
 	claims, ok := token.Claims.(*Claims)
-	if !token.Valid && !ok {
-		return "", err
+	if !token.Valid || !ok {
+		return "", errors.New("Invalid token")
 	}
 
-	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	accessTokenString, err := accessToken.SignedString([]byte(secretKey))
+	newClaims := Claims{
+		UserID: claims.UserID,
+		Email:	claims.Email,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject: 	claims.UserID,
+			IssuedAt:	jwt.NewNumericDate(time.Now()),
+			ExpiresAt: 	jwt.NewNumericDate(time.Now().Add(15 * time.Minute)),
+		},
+	}
+
+	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, newClaims)
+
+	accessTokenString, err := accessToken.SignedString([]byte(accessSecret))
 	if err != nil {
 		return "", err
 	}

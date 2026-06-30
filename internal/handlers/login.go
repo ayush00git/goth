@@ -34,7 +34,7 @@ func (g *GothServer) Login(ctx context.Context, req *goth.LoginRequest) (*goth.L
 		ctx,
 		`SELECT id, email, password_hash
 		FROM users
-		WHERE $1 = email`, email,
+		WHERE email = $1`, email,
 	).Scan(&user.id, &user.email, &user.password)
 	if err == pgx.ErrNoRows {
 		return nil, status.Error(codes.Unauthenticated, "invalid credentials")

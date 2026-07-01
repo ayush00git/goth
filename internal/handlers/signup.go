@@ -4,26 +4,10 @@ import (
 	"context"
 
 	"github.com/ayush00git/goth/grpc/goth"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
-
-// embeds the generated grpc server implementation for forward compatibility.
-// shared psql connection pools to be used by rpc handlers.
-type GothServer struct {
-	goth.UnimplementedGothServiceServer
-	db *pgxpool.Pool
-}
-
-// NewServer creates a new gRPC sever with its required dependencies.
-func NewServer(db *pgxpool.Pool) *GothServer {
-	return &GothServer{
-		db: db,
-	}
-}
 
 func (g *GothServer) Signup(ctx context.Context, req *goth.SignupRequest) (*goth.SignupResponse, error) {
 	// inputs from request body

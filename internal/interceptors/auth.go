@@ -16,9 +16,9 @@ func AuthInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo, h
 	// bypass AuthInterceptor for these public rpcs
 	switch info.FullMethod {
 		case "/goth.GothService/Login",
-			"goth.GothService/Signup",
-			"goth.GothService/SendOTP",
-			"goth.GothService/VerifyOTP":
+			"/goth.GothService/Signup",
+			"/goth.GothService/SendOTP",
+			"/goth.GothService/VerifyOTP":
 			return handler(ctx, req)
 	}
 

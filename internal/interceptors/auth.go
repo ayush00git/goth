@@ -12,6 +12,16 @@ import (
 )
 
 func AuthInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+
+	// bypass AuthInterceptor for these public rpcs
+	switch info.FullMethod {
+		case "/goth.GothService/Login",
+			"/goth.GothService/Signup",
+			"/goth.GothService/SendOTP",
+			"/goth.GothService/VerifyOTP":
+			return handler(ctx, req)
+	}
+
 	// read incoming metadata
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {

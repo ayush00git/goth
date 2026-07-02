@@ -8,6 +8,7 @@ import (
 	"github.com/ayush00git/goth/internal/db"
 	"github.com/ayush00git/goth/internal/handlers"
 	"github.com/ayush00git/goth/internal/helpers"
+	"github.com/ayush00git/goth/internal/interceptors"
 	"github.com/joho/godotenv"
 
 	"google.golang.org/grpc"
@@ -46,6 +47,11 @@ func main() {
 	// default protobuf
 	s := grpc.NewServer(
 		grpc.ForceServerCodecV2(goth.CodecV2{}),
+		grpc.ChainUnaryInterceptor(
+			interceptors.RecoveryInterceptor,
+			interceptors.LoggingInterceptor,
+			interceptors.AuthInterceptor,
+		),
 	)
 	
 	// register the gRPC server

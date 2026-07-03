@@ -23,7 +23,7 @@ CREATE TABLE refresh_tokens (
 
 CREATE TABLE mfa_secrets (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id             UUID REFERENCES users(id),
+    user_id             UUID UNIQUE REFERENCES users(id),   -- only one mfa_secret per user
     totp_secret         VARCHAR(255),
     mfa_type            SMALLINT DEFAULT 0,
     is_verified         BOOLEAN DEFAULT FALSE,

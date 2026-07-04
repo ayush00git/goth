@@ -63,8 +63,7 @@ message RefreshTokenResponse [id=107] {
 }
 
 message EnableMFARequest [id=108] {
-    string user_id = 1;
-    MFAType mfa_type = 2;
+    MFAType mfa_type = 1;
 }
 
 message EnableMFAResponse [id=109] {
@@ -77,7 +76,6 @@ message EnableMFAResponse [id=109] {
 message VerifyMFARequest [id=110] {
     string mfa_session_token = 1;
     string code = 2;
-    MFAType mfa_type = 3;
 }
 
 message VerifyMFAResponse [id=111] {
@@ -87,8 +85,7 @@ message VerifyMFAResponse [id=111] {
 }
 
 message DisableMFARequest [id=112] {
-    string user_id = 1;
-    string code = 2;
+    string code = 1;
 }
 
 message DisableMFAResponse [id=113] {

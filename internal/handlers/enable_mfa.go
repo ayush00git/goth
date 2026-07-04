@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"time"
 
 	"github.com/ayush00git/goth/grpc/goth"
 	"github.com/ayush00git/goth/internal/helpers"
@@ -57,11 +58,40 @@ func (g *GothServer) EnableMFA(ctx context.Context, req *goth.EnableMFARequest) 
 				OtpExpiresIn: 0,
 			}, nil
 		case 2:
+			// generate the otp
+			otp, err := helpers.GenerateOTP()
+			if err != nil {
+				return nil, status.Error(codes.Internal, "failed generating OTP")
+			}
+			// mail otp to the client
+			go func() {
+
+			}()
+
+			// hash the otp
+			hashedOTP, err := helpers.GenerateHash(otp)
+			if err != nil {
+				return nil, status.Error(codes.Internal, "failed hashing otp")
+			}
+
+			// store to redis
+			err = g.rdb.Set(
+				ctx,
+				"mfa:email_otp:" + userID,
+				hashedOTP,
+				5*time.Minute,
+			).Err()
+			if err != nil {
+				return nil, status.Error(codes.Internal, "failed storing to redis")
+			}
+
 			return &goth.EnableMFAResponse{
 				Success: true,
 				TotpSecret: "",
 				TotpQrUrl: "",
-				OtpExpiresIn: 30,
+				OtpExpiresIn: 300,	// 5min
 			}, nil
+		default:
+			return nil, status.Error(codes.InvalidArgument, "mfa_type argument not recognized")
 	}
 }

@@ -165,8 +165,7 @@ func (m *RefreshTokenResponse) FromBytes(data []byte) error {
 
 // Type ID 108 is specified manually.
 type EnableMFARequest struct {
-	UserId string `fory:"id=1"`
-	MfaType MFAType `fory:"id=2"`
+	MfaType MFAType `fory:"id=1"`
 }
 
 func (m *EnableMFARequest) ToBytes() ([]byte, error) {
@@ -197,7 +196,6 @@ func (m *EnableMFAResponse) FromBytes(data []byte) error {
 type VerifyMFARequest struct {
 	MfaSessionToken string `fory:"id=1"`
 	Code string `fory:"id=2"`
-	MfaType MFAType `fory:"id=3"`
 }
 
 func (m *VerifyMFARequest) ToBytes() ([]byte, error) {
@@ -225,8 +223,7 @@ func (m *VerifyMFAResponse) FromBytes(data []byte) error {
 
 // Type ID 112 is specified manually.
 type DisableMFARequest struct {
-	UserId string `fory:"id=1"`
-	Code string `fory:"id=2"`
+	Code string `fory:"id=1"`
 }
 
 func (m *DisableMFARequest) ToBytes() ([]byte, error) {

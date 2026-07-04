@@ -10,6 +10,9 @@ import (
 )
 
 func main() {
+	// metadata to test the gRPC server without an actual gRPC client
+	accessToken := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiY2E1MTg1ZDAtMWU0Ni00ZDdhLWFjMGItMmE4M2IyNTU5NGRlIiwiZW1haWwiOiJ0ZXN0ZXI2NDEyQGdtYWlsLmNvbSIsInN1YiI6ImNhNTE4NWQwLTFlNDYtNGQ3YS1hYzBiLTJhODNiMjU1OTRkZSIsImV4cCI6MTc4MzE3NjEwNiwiaWF0IjoxNzgzMTc1MjA2fQ.5jf1GxA6YIitMnlvI7hw-DzpcSCcMSA7hH94zvLjRio"
+
 	// connect to the gRPC server.
 	conn, err := grpc.NewClient(
 		"localhost:50051",
@@ -29,5 +32,5 @@ func main() {
 	// TestLogin(client)
 	// TestLogout(client)
 	// TestRefreshToken(client)
-	TestEnableMFA(client)
+	TestEnableMFA(client, accessToken)
 }

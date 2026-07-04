@@ -51,7 +51,7 @@ func ValidateAccessToken(tokenString string) (*Claims, error) {
 	// parse the jwt token string.
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{},
 		func(token *jwt.Token) (interface{}, error) {
-			return secretKey, nil
+			return []byte(secretKey), nil
 		},
 	)
 	if err != nil {

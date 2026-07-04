@@ -19,8 +19,8 @@ func (g *GothServer) EnableMFA(ctx context.Context, req *goth.EnableMFARequest) 
 	//			= 1 : TOTP
 	// 			= 2 : EmailOTP
 	mfa_type := req.MfaType
-
-	// userID := req.UserId		// UserId does comes from request body, but can't be trusted, fetch it from UserContextKeys{} instead
+	
+	// get userID from the metadata stored in UserContextKeys{}
 	claims, ok := interceptors.GetClaims(ctx)
 	if !ok {
 		return nil, status.Error(codes.Unauthenticated, "user not authenticated")

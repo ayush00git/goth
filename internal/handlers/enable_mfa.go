@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"time"
 
 	"github.com/ayush00git/goth/grpc/goth"
 	"github.com/ayush00git/goth/internal/helpers"
@@ -27,44 +28,70 @@ func (g *GothServer) EnableMFA(ctx context.Context, req *goth.EnableMFARequest) 
 	}
 	userID := claims.UserID
 
-	// start the databse transaction
-	tx, err := g.db.Begin(ctx)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "error starting database transaction")
-	}
-	// register this into a new row in mfa_secrets table
-	defer tx.Rollback(ctx)
+	switch mfa_type {
+		case 1:
+			// generate the totp_secret (random 32 bytes base-32 encoded string)
+			totp_secret, err := helpers.GenerateTOTPSecret()
+			if err != nil {
+				return nil, status.Error(codes.Internal, "failed generating totp_secret")
+			}
 
-	// generate the totp_secret (random 32 bytes base-32 encoded string)
-	totp_secret, err := helpers.GenerateTOTPSecret()
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed generating totp_secret")
-	}
+			_, err = g.db.Exec(
+				ctx,
+				`INSERT INTO mfa_secrets (user_id, totp_secret, mfa_type)
+				VALUES ($1, $2, $3)`,
+				userID,
+				totp_secret,
+				mfa_type,
+			)
+			if err != nil {
+				return nil, status.Error(codes.Internal, "failed inserting to database")
+			}
+			
+			// generate the totp QR URL to be passed to the authenticator app
+			QrURL := services.GenerateTOTPQRURL(claims.Email, totp_secret)
 
-	_, err = tx.Exec(
-		ctx,
-		`INSERT INTO mfa_secrets (user_id, totp_secret, mfa_type)
-		VALUES ($1, $2, $3)`,
-		userID,
-		totp_secret,
-		mfa_type,
-	)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed inserting to database")
-	}
-	
-	// commit the transaction
-	if err := tx.Commit(ctx); err != nil {
-		return nil, status.Error(codes.Internal, "failed committing the database transaction")
-	}
+			return &goth.EnableMFAResponse{
+				Success: true,
+				TotpSecret: totp_secret,
+				TotpQrUrl: QrURL,
+				OtpExpiresIn: 0,
+			}, nil
+		case 2:
+			// generate the otp
+			otp, err := helpers.GenerateOTP()
+			if err != nil {
+				return nil, status.Error(codes.Internal, "failed generating OTP")
+			}
+			// mail otp to the client
+			go func() {
 
-	// generate the totp QR URL to be passed to the authenticator app
-	QrURL := services.GenerateTOTPQRURL(claims.Email, totp_secret)
+			}()
 
-	return &goth.EnableMFAResponse{
-		Success: true,
-		TotpSecret: totp_secret,
-		TotpQrUrl: QrURL,
-		OtpExpiresIn: 0,
-	}, nil
+			// hash the otp
+			hashedOTP, err := helpers.GenerateHash(otp)
+			if err != nil {
+				return nil, status.Error(codes.Internal, "failed hashing otp")
+			}
+
+			// store to redis
+			err = g.rdb.Set(
+				ctx,
+				"mfa:email_otp:" + userID,
+				hashedOTP,
+				5*time.Minute,
+			).Err()
+			if err != nil {
+				return nil, status.Error(codes.Internal, "failed storing to redis")
+			}
+
+			return &goth.EnableMFAResponse{
+				Success: true,
+				TotpSecret: "",
+				TotpQrUrl: "",
+				OtpExpiresIn: 300,	// 5min
+			}, nil
+		default:
+			return nil, status.Error(codes.InvalidArgument, "mfa_type argument not recognized")
+	}
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net"
 
@@ -9,10 +10,10 @@ import (
 	"github.com/ayush00git/goth/internal/handlers"
 	"github.com/ayush00git/goth/internal/helpers"
 	"github.com/ayush00git/goth/internal/interceptors"
+	"github.com/ayush00git/goth/internal/redis"
 	"github.com/joho/godotenv"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
 )
 
 func main() {
@@ -32,6 +33,12 @@ func main() {
 	}
 	defer db.Close()
 	log.Println("connected to database")
+
+	// connect to redis client
+	rdb := redis.RedisClient()
+	if err := rdb.Ping(context.Background()); err != nil {
+		log.Fatal(err)
+	}
 
 	// open a raw tcp connection on gRPC default port
 	// this connection just send/receive bytes, encoding
@@ -55,8 +62,10 @@ func main() {
 	)
 	
 	// register the gRPC server
-	goth.RegisterGothServiceServer(s, handlers.NewServer(db.Pool))
-	reflection.Register(s)	// reflection package helps grpcurl recognize the goth service definitions
+	goth.RegisterGothServiceServer(
+		s,
+		handlers.NewServer(db.Pool, rdb),
+	)
 
 	log.Println("Goth server running on port :50051")
 	if err := s.Serve(lis); err != nil {

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"log"
 	"time"
 
 	"github.com/ayush00git/goth/grpc/goth"
@@ -65,7 +66,9 @@ func (g *GothServer) EnableMFA(ctx context.Context, req *goth.EnableMFARequest) 
 			}
 			// mail otp to the client
 			go func() {
-
+				if err := services.SendMail(claims.Email, "Email OTP MFA was enabled for your account"); err != nil {
+					log.Printf("Failed to send enable-mfa mail: %s", err)
+				}
 			}()
 
 			// hash the otp

@@ -26,7 +26,8 @@ func SendMail(to, subject string) error {
 	message.Subject(subject)
 	
 	client, err := mail.NewClient(
-		"smtp.example.com",
+		"smtp.gmail.com",
+		mail.WithPort(587),
 		mail.WithSMTPAuth(mail.SMTPAuthAutoDiscover),
 		mail.WithUsername(userName),
 		mail.WithPassword(password),

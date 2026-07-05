@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"context"
+	"fmt"
+	"log"
 	"time"
 
 	"github.com/ayush00git/goth/grpc/goth"
@@ -36,16 +38,20 @@ func (g *GothServer) EnableMFA(ctx context.Context, req *goth.EnableMFARequest) 
 				return nil, status.Error(codes.Internal, "failed generating totp_secret")
 			}
 
-			_, err = g.db.Exec(
+			tags, err := g.db.Exec(
 				ctx,
 				`INSERT INTO mfa_secrets (user_id, totp_secret, mfa_type)
-				VALUES ($1, $2, $3)`,
+				VALUES ($1, $2, $3)
+				ON CONFLICT (user_id) DO NOTHING`,
 				userID,
 				totp_secret,
 				mfa_type,
 			)
 			if err != nil {
 				return nil, status.Error(codes.Internal, "failed inserting to database")
+			}
+			if tags.RowsAffected() == 0 {
+				return nil, status.Error(codes.AlreadyExists, "mfa-type for this user already exists")
 			}
 			
 			// generate the totp QR URL to be passed to the authenticator app
@@ -63,10 +69,6 @@ func (g *GothServer) EnableMFA(ctx context.Context, req *goth.EnableMFARequest) 
 			if err != nil {
 				return nil, status.Error(codes.Internal, "failed generating OTP")
 			}
-			// mail otp to the client
-			go func() {
-
-			}()
 
 			// hash the otp
 			hashedOTP, err := helpers.GenerateHash(otp)
@@ -84,6 +86,43 @@ func (g *GothServer) EnableMFA(ctx context.Context, req *goth.EnableMFARequest) 
 			if err != nil {
 				return nil, status.Error(codes.Internal, "failed storing to redis")
 			}
+	
+			// store mfa_secrets to db
+			tags, err := g.db.Exec(
+				ctx,
+				`INSERT INTO mfa_secrets (user_id, totp_secret, mfa_type)
+				VALUES ($1, $2, $3)
+				ON CONFLICT (user_id) DO NOTHING`,
+				userID,
+				"",
+				mfa_type,
+			)
+			if err != nil {
+				return nil, status.Error(codes.Internal, "failed inserting mfa_secrets to database")
+			}
+			if tags.RowsAffected() == 0 {
+				return nil, status.Error(codes.AlreadyExists, "mfa-type for this user already exists")
+			}
+
+			// create email subject
+			mailSubject := "Email OTP MFA was enabled for your account"
+			// create the email body
+			mailBody := fmt.Sprintf(
+				`	<h2>Verify MFA for your account</h2>
+					<p>Your verification code is:</p>
+					<h1>%s</h1>
+					<p>This code expires in <b>5 minutes</b>.</p>
+				`,
+				otp,
+			)
+			
+			// mail otp to the client
+			email := claims.Email
+			go func(email string) {
+				if err := services.SendMail(claims.Email, mailSubject, mailBody); err != nil {
+					log.Printf("Failed to send enable-mfa mail: %s", err)
+				}
+			}(email)
 
 			return &goth.EnableMFAResponse{
 				Success: true,

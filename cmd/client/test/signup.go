@@ -12,7 +12,7 @@ func TestSignup(c goth.GothServiceClient) {
 	randomInt := rand.IntN(9999)
 
 	resp, err := c.Signup(context.Background(), &goth.SignupRequest{
-		Email: fmt.Sprintf("tester%d@gmail.com", randomInt),
+		Email: fmt.Sprintf("tester%d@testt.com", randomInt),
 		Password: "password123",
 		FullName: "tester",
 	})

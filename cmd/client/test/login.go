@@ -5,20 +5,46 @@ import (
 	"fmt"
 
 	"github.com/ayush00git/goth/grpc/goth"
+	"github.com/spf13/cobra"
 )
 
-func TestLogin(c goth.GothServiceClient) {
-	resp, err := c.Login(context.Background(), &goth.LoginRequest{
-		Email: "tester2157@testt.com",
-		Password: "password123",
-		DeviceFingerprint: "web-chrome",	// might use uuid.NewString() to test how flow works for multiple devices
-	})
-	if err != nil {
-		panic(err)
-	}
+var loginCmd = &cobra.Command{
+	Use:   "login",
+	Short: "Log in as an existing user",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		email, _ := cmd.Flags().GetString("email")
+		password, _ := cmd.Flags().GetString("password")
+		device, _ := cmd.Flags().GetString("device")
 
-	fmt.Printf("login successfull\n")
-	fmt.Printf("access_token: %s\n", resp.AccessToken)
-	fmt.Printf("refresh_token: %s\n", resp.RefreshToken)
-	// mfa-type
+		client, conn, err := grpcClient()
+		if err != nil {
+			return err
+		}
+		defer conn.Close()
+
+		resp, err := client.Login(context.Background(), &goth.LoginRequest{
+			Email:             email,
+			Password:          password,
+			DeviceFingerprint: device,
+		})
+		if err != nil {
+			return err
+		}
+
+		fmt.Println("Login Successful")
+		fmt.Printf("Access Token:  %s\n", resp.AccessToken)
+		fmt.Printf("Refresh Token: %s\n", resp.RefreshToken)
+		return nil
+	},
+}
+
+func init() {
+	loginCmd.Flags().String("email", "", "User email (required)")
+	loginCmd.Flags().String("password", "", "Password (required)")
+	loginCmd.Flags().String("device", "go-client", "Device fingerprint")
+
+	_ = loginCmd.MarkFlagRequired("email")
+	_ = loginCmd.MarkFlagRequired("password")
+
+	rootCmd.AddCommand(loginCmd)
 }

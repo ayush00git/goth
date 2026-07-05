@@ -29,15 +29,18 @@ func main() {
 	// ** to be able to set sslmode=require to use a encrypted tcp **
 	db, err := db.New(DB_URI)
 	if err != nil {
-		log.Fatalf("unable to connect to the database: %v", err)
+		log.Fatalf("unable to connect to the psql database: %v", err)
 	}
 	defer db.Close()
-	log.Println("connected to database")
+	log.Println("connected to psql database")
 
 	// connect to redis client
 	rdb := redis.RedisClient()
-	if err := rdb.Ping(context.Background()); err != nil {
-		log.Fatal(err)
+	pong, err := rdb.Ping(context.Background()).Result()
+	if err != nil {
+		log.Fatalf("unable to connect to the redis client: %v", err)
+	} else {
+		log.Printf("Redis: %s", pong)
 	}
 
 	// open a raw tcp connection on gRPC default port

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
@@ -64,12 +65,18 @@ func (g *GothServer) EnableMFA(ctx context.Context, req *goth.EnableMFARequest) 
 			if err != nil {
 				return nil, status.Error(codes.Internal, "failed generating OTP")
 			}
-			// mail otp to the client
-			go func() {
-				if err := services.SendMail(claims.Email, "Email OTP MFA was enabled for your account"); err != nil {
-					log.Printf("Failed to send enable-mfa mail: %s", err)
-				}
-			}()
+
+			// create email subject
+			mailSubject := "Email OTP MFA was enabled for your account"
+			// create the email body
+			mailBody := fmt.Sprintf(
+				`	<h2>Verify MFA for your account</h2>
+					<p>Your verification code is:</p>
+					<h1>%s</h1>
+					<p>This code expires in <b>5 minutes</b>.</p>
+				`,
+				otp,
+			)
 
 			// hash the otp
 			hashedOTP, err := helpers.GenerateHash(otp)
@@ -86,6 +93,27 @@ func (g *GothServer) EnableMFA(ctx context.Context, req *goth.EnableMFARequest) 
 			).Err()
 			if err != nil {
 				return nil, status.Error(codes.Internal, "failed storing to redis")
+			}
+	
+			// mail otp to the client
+			email := claims.Email
+			go func(email string) {
+				if err := services.SendMail(claims.Email, mailSubject, mailBody); err != nil {
+					log.Printf("Failed to send enable-mfa mail: %s", err)
+				}
+			}(email)
+
+			// store mfa_secrets to db
+			_, err = g.db.Exec(
+				ctx,
+				`INSERT INTO mfa_secrets (user_id, totp_secret, mfa_type)
+				VALUES ($1, $2, $3)`,
+				userID,
+				"",
+				mfa_type,
+			)
+			if err != nil {
+				return nil, status.Error(codes.Internal, "failed inserting mfa_secrets to database")
 			}
 
 			return &goth.EnableMFAResponse{

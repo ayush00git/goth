@@ -9,7 +9,7 @@ import (
 
 // SendMail creates an go-mail client and sends the mail
 // to the designated gRPC server's client.
-func SendMail(to, subject string) error {
+func SendMail(to, subject, body string) error {
 	password := helpers.GetEnvVar("MAIL_PASS")
 	userName := helpers.GetEnvVar("MAIL_USERNAME")
 
@@ -24,6 +24,7 @@ func SendMail(to, subject string) error {
 	}
 
 	message.Subject(subject)
+	message.SetBodyString(mail.TypeTextHTML, body)
 	
 	client, err := mail.NewClient(
 		"smtp.gmail.com",

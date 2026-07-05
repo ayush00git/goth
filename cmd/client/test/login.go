@@ -9,7 +9,7 @@ import (
 
 func TestLogin(c goth.GothServiceClient) {
 	resp, err := c.Login(context.Background(), &goth.LoginRequest{
-		Email: "tester6412@gmail.com",
+		Email: "tester2157@testt.com",
 		Password: "password123",
 		DeviceFingerprint: "web-chrome",	// might use uuid.NewString() to test how flow works for multiple devices
 	})

@@ -5,27 +5,47 @@ import (
 	"fmt"
 
 	"github.com/ayush00git/goth/grpc/goth"
+	"github.com/spf13/cobra"
 	"google.golang.org/grpc/metadata"
 )
 
-func TestEnableMFA(c goth.GothServiceClient, accessToken string) {
-    md := metadata.Pairs(
-        "authorization",
-        "Bearer "+accessToken,
-    )
+var enableMFACmd = &cobra.Command{
+	Use:   "enable-mfa",
+	Short: "Enable MFA for the authenticated user",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		accessToken, _ := cmd.Flags().GetString("access-token")
+		mfaType, _ := cmd.Flags().GetInt32("mfa-type")
 
-    ctx := metadata.NewOutgoingContext(context.Background(), md)
+		client, conn, err := grpcClient()
+		if err != nil {
+			return err
+		}
+		defer conn.Close()
 
-	resp, err := c.EnableMFA(ctx, &goth.EnableMFARequest{
-		MfaType: 2,
-	})
-	if err != nil {
-		panic((err))
-	}
+		md := metadata.Pairs("authorization", "Bearer "+accessToken)
+		ctx := metadata.NewOutgoingContext(context.Background(), md)
 
-	fmt.Print("MFA Enabled\n")
-	fmt.Printf("success: %t\n", resp.Success)
-	fmt.Printf("totp_secret: %s\n", resp.TotpSecret)
-	fmt.Printf("totp_QrUrl: %s\n", resp.TotpQrUrl)
-	fmt.Printf("otp_expires_in: %d\n", resp.OtpExpiresIn)
+		resp, err := client.EnableMFA(ctx, &goth.EnableMFARequest{
+			MfaType: goth.MFAType(mfaType),
+		})
+		if err != nil {
+			return err
+		}
+
+		fmt.Println("MFA Enabled")
+		fmt.Printf("Success:      %t\n", resp.Success)
+		fmt.Printf("TOTP Secret:  %s\n", resp.TotpSecret)
+		fmt.Printf("TOTP QR URL:  %s\n", resp.TotpQrUrl)
+		fmt.Printf("OTP Expires:  %d\n", resp.OtpExpiresIn)
+		return nil
+	},
+}
+
+func init() {
+	enableMFACmd.Flags().String("access-token", "", "Bearer access token (required)")
+	enableMFACmd.Flags().Int32("mfa-type", 1, "MFA type (0=None, 1=TOTP, 2=EmailOTP)")
+
+	_ = enableMFACmd.MarkFlagRequired("access-token")
+
+	rootCmd.AddCommand(enableMFACmd)
 }

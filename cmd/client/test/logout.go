@@ -5,16 +5,37 @@ import (
 	"fmt"
 
 	"github.com/ayush00git/goth/grpc/goth"
+	"github.com/spf13/cobra"
 )
 
-func TestLogout(c goth.GothServiceClient) {
-	resp, err := c.Logout(context.Background(), &goth.LogoutRequest{
-		RefreshToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiY2E1MTg1ZDAtMWU0Ni00ZDdhLWFjMGItMmE4M2IyNTU5NGRlIiwiZW1haWwiOiJ0ZXN0ZXI2NDEyQGdtYWlsLmNvbSIsImRldmljZV9maW5nZXJwcmludCI6ImdvLWNsaWVudCIsInN1YiI6ImNhNTE4NWQwLTFlNDYtNGQ3YS1hYzBiLTJhODNiMjU1OTRkZSIsImV4cCI6MTc4MjkzMTU0MywiaWF0IjoxNzgyODQ1MTQzLCJqdGkiOiJmYzA5M2ZlYS03ZTZiLTRhMjItOGFhOC1lNTQ0MjA4ZmRlZjkifQ.Si88-ID05aUdY5vWSe_w1ZAul4SrZ1swUH_beZb0IR8",
-	})
-	if err != nil {
-		panic(err)
-	}
+var logoutCmd = &cobra.Command{
+	Use:   "logout",
+	Short: "Invalidate a refresh token (log out a device)",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		refreshToken, _ := cmd.Flags().GetString("refresh-token")
 
-	fmt.Printf("logout success!\n")
-	fmt.Printf("Success %t\n", resp.Success)
+		client, conn, err := grpcClient()
+		if err != nil {
+			return err
+		}
+		defer conn.Close()
+
+		resp, err := client.Logout(context.Background(), &goth.LogoutRequest{
+			RefreshToken: refreshToken,
+		})
+		if err != nil {
+			return err
+		}
+
+		fmt.Println("Logout Successful")
+		fmt.Printf("Success: %t\n", resp.Success)
+		return nil
+	},
+}
+
+func init() {
+	logoutCmd.Flags().String("refresh-token", "", "Refresh token to invalidate (required)")
+	_ = logoutCmd.MarkFlagRequired("refresh-token")
+
+	rootCmd.AddCommand(logoutCmd)
 }

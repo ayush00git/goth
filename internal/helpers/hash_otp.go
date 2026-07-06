@@ -2,7 +2,7 @@ package helpers
 
 import "golang.org/x/crypto/bcrypt"
 
-// Hash hashes a input string using the bcrypt library
+// GenerateHash hashes a input string using the bcrypt library
 // and returns a hashed string.
 func GenerateHash(input string) (string, error) {
 	hashedBytes, err := bcrypt.GenerateFromPassword([]byte(input), 10)
@@ -12,4 +12,14 @@ func GenerateHash(input string) (string, error) {
 
 	hashedString := string(hashedBytes)
 	return hashedString, err
+}
+
+// ValidateHash Compares the hash with its actual string version
+// and returns success.
+func ValidateHash(hashedCode, code string) error {
+	err := bcrypt.CompareHashAndPassword([]byte(hashedCode), []byte(code))
+	if err != nil {
+		return err
+	}
+	return nil
 }

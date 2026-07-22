@@ -13,7 +13,7 @@ import (
 
 type Creds struct {
 	MfaType		int32
-	TotpSecret	string
+	TotpSecret	*string
 }
 
 // VerifyMFA completes the MFA of client based on its mfa_type and returns
@@ -48,7 +48,7 @@ func (g *GothServer) VerifyMFA(ctx context.Context, req *goth.VerifyMFARequest) 
 		case 1:
 			// validate the client entered TOTP by generating it on server-side
 			// via the same totp_secret.
-			valid := totp.Validate(code, initials.TotpSecret)	// computes the check by the RPC 6238 algorithm
+			valid := totp.Validate(code, *initials.TotpSecret)	// computes the check by the RPC 6238 algorithm
 			if !valid {
 				return nil, status.Error(codes.PermissionDenied, "invalid code")
 			}

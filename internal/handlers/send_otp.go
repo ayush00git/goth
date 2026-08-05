@@ -74,6 +74,41 @@ func (g *GothServer) SendOTP(ctx context.Context, req *goth.SendOTPRequest) (*go
 			}
 
 			email := claims.Email
+			userID := claims.UserID
+			
+			otp, err := helpers.GenerateOTP()
+			if err != nil {
+				return nil, status.Error(codes.Internal, "failed generating OTP")
+			}
 
+			hashedOTP, err := helpers.GenerateHash(otp)
+			if err != nil {
+				return nil, status.Error(codes.Internal, "failed hashing the otp")
+			}
+
+			// store to redis.
+			err = g.rdb.Set(
+				ctx,
+				"password_reset:email_otp" + userID,
+				hashedOTP,
+				5*time.Minute,
+			).Err()
+			if err != nil {
+				return nil, status.Error(codes.Internal, "failed storing to redis")
+			}
+
+			mailBody := fmt.Sprintf(
+				`	<h2>Reset Password for your account</h2>
+					<p>Your verification code is:</p>
+					<h1>%s</h1>
+					<p>This code expires in <b>5 minutes</b>.</p>
+				`,
+				otp,
+			)
+
+			err = services.SendMail(email, "Reset Password for your account", mailBody)
+			if err != nil {
+				return nil, status.Error(codes.Internal, "failed sending email to user")
+			}
 	}
 }

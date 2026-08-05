@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"log"
 
 	"github.com/ayush00git/goth/grpc/goth"
 	"github.com/ayush00git/goth/internal/helpers"
@@ -26,10 +27,11 @@ func (g *GothServer) DisableMFA(ctx context.Context, req *goth.DisableMFARequest
 		ctx,
 		`SELECT mfa_type, totp_secret
 		FROM mfa_secrets
-		WHERE id = $1`,
+		WHERE user_id = $1`,
 		userID,
 	).Scan(&initials.MfaType, &initials.TotpSecret)
 	if err != nil {
+		log.Printf("Error: %v", err)
 		return nil, status.Error(codes.Internal, "failed to read the database")
 	}
 

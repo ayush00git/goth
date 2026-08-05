@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/ayush00git/goth/grpc/goth"
+	"github.com/ayush00git/goth/internal/helpers"
 	"github.com/ayush00git/goth/internal/interceptors"
 	"github.com/pquerna/otp/totp"
 	"google.golang.org/grpc/codes"
@@ -41,7 +42,7 @@ func (g *GothServer) DisableMFA(ctx context.Context, req *goth.DisableMFARequest
 				return nil, status.Error(codes.PermissionDenied, "invalid code")
 			}
 			
-			// Delete the mfa_secrets for this user
+			// Delete mfa_secrets for this user
 			_, err := g.db.Exec(
 				ctx,
 				`DELETE FROM mfa_secrets
@@ -53,8 +54,34 @@ func (g *GothServer) DisableMFA(ctx context.Context, req *goth.DisableMFARequest
 			}
 		
 		case 2:
-			
-	}
+			// match the otp with the one stored in redis.
+			hashCode, err := g.rdb.Get(
+				ctx,
+				"mfa:email_otp:" + userID,
+			).Result()
+			if err != nil {
+				return nil, status.Error(codes.NotFound, "code may be expired")
+			}
+
+			err = helpers.ValidateHash(hashCode, code)
+			if err != nil {
+				return nil, status.Error(codes.Unauthenticated, "invalid code")
+			}
+
+			// Delete mfa_secrets for this user
+			_, err = g.db.Exec(
+				ctx,
+				`DELETE FROM mfa_secrets
+				WHERE user_id = $1`,
+				userID,
+			)
+			if err != nil {
+				return nil, status.Error(codes.Internal, "failed to delete the mfa_secrets")
+			}
+
+		default:
+			return nil, status.Error(codes.InvalidArgument, "invalid mfa_type")
+		}
 
 	return &goth.DisableMFAResponse{
 		Success: true,

@@ -15,12 +15,12 @@ import (
 
 func (g *GothServer) SendOTP(ctx context.Context, req *goth.SendOTPRequest) (*goth.SendOTPResponse, error) {
 	// OTPPurpose is a enum type with specified values for each type.
-	// 0 - MfaType (authenticated)
-	// 1 - Password reset (user should be authenticated, validate email via access token)
-	// 2 - Email Verification (can accept email from any user in this case).
-	purpose := req.Purpose
+	// 0 - MfaType (authenticated user is required).
+	// 1 - Password reset (user could be auth/unauthenticated).
+	// 2 - Email Verification (user could be auth/unauthenticated).
+	
 
-	switch purpose {
+	switch req.Purpose {
 		case goth.OTPPurposeMfa:
 			// get the email of the authenticated user from the access token.
 			claims, ok := interceptors.GetClaims(ctx)
@@ -72,15 +72,10 @@ func (g *GothServer) SendOTP(ctx context.Context, req *goth.SendOTPRequest) (*go
 			}, nil
 		
 		case goth.OTPPurposePasswordReset:
-			// get the email of the authenticated user from the access token.
-			claims, ok := interceptors.GetClaims(ctx)
-			if !ok {
-				return nil, status.Error(codes.Internal, "failed getting claims")
-			}
 
-			email := claims.Email
-			userID := claims.UserID
+			email := req.Email
 			
+			// generate + hash the otp and then store to redis.
 			otp, err := helpers.GenerateOTP()
 			if err != nil {
 				return nil, status.Error(codes.Internal, "failed generating OTP")
@@ -94,7 +89,7 @@ func (g *GothServer) SendOTP(ctx context.Context, req *goth.SendOTPRequest) (*go
 			// store to redis.
 			err = g.rdb.Set(
 				ctx,
-				"password_reset:email_otp" + userID,
+				"password_reset:email_otp" + email,
 				hashedOTP,
 				5*time.Minute,
 			).Err()

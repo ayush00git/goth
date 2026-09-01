@@ -89,7 +89,7 @@ func (g *GothServer) SendOTP(ctx context.Context, req *goth.SendOTPRequest) (*go
 			// store to redis.
 			err = g.rdb.Set(
 				ctx,
-				"password_reset:email_otp" + email,
+				"password_reset:email_otp:" + email,
 				hashedOTP,
 				5*time.Minute,
 			).Err()
@@ -120,6 +120,21 @@ func (g *GothServer) SendOTP(ctx context.Context, req *goth.SendOTPRequest) (*go
 			// get the email once again.
 			email := req.Email
 
+			// check if the user's account is already verified.
+			var isVerified bool
+			err := g.db.QueryRow(
+				ctx,
+				`SELECT email_verified FROM users
+				WHERE email = $1`,
+				email,
+			).Scan(&isVerified)
+			if err != nil {
+				return nil, status.Error(codes.Internal, "failed sending email to user")
+			}
+			if isVerified == true {
+				return nil, status.Error(codes.AlreadyExists, "your account is already verified")
+			}
+
 			otp, err := helpers.GenerateOTP()
 			if err != nil {
 				return nil, status.Error(codes.Internal, "failed generating OTP")
@@ -133,7 +148,7 @@ func (g *GothServer) SendOTP(ctx context.Context, req *goth.SendOTPRequest) (*go
 			// store to redis.
 			err = g.rdb.Set(
 				ctx,
-				"acc_verify:email_otp" + email,
+				"acc_verify:email_otp:" + email,
 				hashedOTP,
 				5*time.Minute,
 			).Err()

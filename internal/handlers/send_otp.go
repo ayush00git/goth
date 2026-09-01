@@ -16,8 +16,8 @@ import (
 func (g *GothServer) SendOTP(ctx context.Context, req *goth.SendOTPRequest) (*goth.SendOTPResponse, error) {
 	// OTPPurpose is a enum type with specified values for each type.
 	// 0 - MfaType (authenticated)
-	// 1 - Password reset (user should be authenticated validate email via access token)
-	// 2 - Email Verification (can accept email from the user in this case).
+	// 1 - Password reset (user should be authenticated, validate email via access token)
+	// 2 - Email Verification (can accept email from any user in this case).
 	purpose := req.Purpose
 
 	switch purpose {
@@ -65,6 +65,11 @@ func (g *GothServer) SendOTP(ctx context.Context, req *goth.SendOTPRequest) (*go
 			if err != nil {
 				return nil, status.Error(codes.Internal, "failed sending email to user")
 			}
+
+			return &goth.SendOTPResponse{
+				Success: true,
+				ExpiresInSeconds: 300,
+			}, nil
 		
 		case 1:
 			// get the email of the authenticated user from the access token.
@@ -110,5 +115,57 @@ func (g *GothServer) SendOTP(ctx context.Context, req *goth.SendOTPRequest) (*go
 			if err != nil {
 				return nil, status.Error(codes.Internal, "failed sending email to user")
 			}
+
+			return &goth.SendOTPResponse{
+				Success: true,
+				ExpiresInSeconds: 300,
+			}, nil
+
+		case 3:
+			// get the email once again.
+			email := req.Email
+
+			otp, err := helpers.GenerateOTP()
+			if err != nil {
+				return nil, status.Error(codes.Internal, "failed generating OTP")
+			}
+
+			hashedOTP, err := helpers.GenerateHash(otp)
+			if err != nil {
+				return nil, status.Error(codes.Internal, "failed hashing the otp")
+			}
+
+			// store to redis.
+			err = g.rdb.Set(
+				ctx,
+				"acc_verify:email_otp" + email,
+				hashedOTP,
+				5*time.Minute,
+			).Err()
+			if err != nil {
+				return nil, status.Error(codes.Internal, "failed storing to redis")
+			}
+
+			mailBody := fmt.Sprintf(
+				`	<h2>Verify your account.</h2>
+					<p>Your verification code is:</p>
+					<h1>%s</h1>
+					<p>This code expires in <b>5 minutes</b>.</p>
+				`,
+				otp,
+			)
+
+			err = services.SendMail(email, "Verify your email", mailBody)
+			if err != nil {
+				return nil, status.Error(codes.Internal, "failed sending email to user")
+			}
+
+			return &goth.SendOTPResponse{
+				Success: true,
+				ExpiresInSeconds: 300,
+			}, nil
+
+		default:
+			return nil, status.Error(codes.InvalidArgument, "purpose code not defined.")
 	}
 }

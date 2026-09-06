@@ -21,7 +21,7 @@ func (g *GothServer) SendOTP(ctx context.Context, req *goth.SendOTPRequest) (*go
 	purpose := req.Purpose
 
 	switch purpose {
-		case 0:
+		case goth.OTPPurposeMfa:
 			// get the email of the authenticated user from the access token.
 			claims, ok := interceptors.GetClaims(ctx)
 			if !ok {
@@ -71,7 +71,7 @@ func (g *GothServer) SendOTP(ctx context.Context, req *goth.SendOTPRequest) (*go
 				ExpiresInSeconds: 300,
 			}, nil
 		
-		case 1:
+		case goth.OTPPurposePasswordReset:
 			// get the email of the authenticated user from the access token.
 			claims, ok := interceptors.GetClaims(ctx)
 			if !ok {
@@ -121,7 +121,7 @@ func (g *GothServer) SendOTP(ctx context.Context, req *goth.SendOTPRequest) (*go
 				ExpiresInSeconds: 300,
 			}, nil
 
-		case 3:
+		case goth.OTPPurposeEmailVerify:
 			// get the email once again.
 			email := req.Email
 

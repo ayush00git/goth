@@ -17,7 +17,6 @@ func AuthInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo, h
 	switch info.FullMethod {
 		case "/goth.GothService/Login",
 			"/goth.GothService/Signup",
-			"/goth.GothService/SendOTP",
 			"/goth.GothService/VerifyOTP":
 			return handler(ctx, req)
 	}

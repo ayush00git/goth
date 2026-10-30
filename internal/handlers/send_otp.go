@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/ayush00git/goth/grpc/goth"
 	"github.com/ayush00git/goth/internal/helpers"
@@ -13,9 +12,6 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
-
-// otpResendCooldown is the minimum gap between two OTP emails for the same target.
-const otpResendCooldown = 60 * time.Second
 
 // mfaIdentity returns the user an MFA OTP should go to. It accepts either:
 //   - an access token (claims set by AuthInterceptor), for enabling/disabling MFA, or
@@ -86,7 +82,7 @@ func (g *GothServer) SendOTP(ctx context.Context, req *goth.SendOTPRequest) (*go
 				ctx,
 				"mfa:email_otp:" + userID,
 				hashedOTP,
-				5*time.Minute,
+				otpTTL,
 			).Err()
 			if err != nil {
 				return nil, status.Error(codes.Internal, "failed storing otp to redis")
@@ -96,9 +92,10 @@ func (g *GothServer) SendOTP(ctx context.Context, req *goth.SendOTPRequest) (*go
 				`	<h2>Verify MFA for your account</h2>
 					<p>Your verification code is:</p>
 					<h1>%s</h1>
-					<p>This code expires in <b>5 minutes</b>.</p>
+					<p>This code expires in <b>%d minutes</b>.</p>
 				`,
 				otp,
+				int(otpTTL.Minutes()),
 			)
 
 			err = services.SendMail(email, "Verify MFA for your account", mailBody)
@@ -108,7 +105,7 @@ func (g *GothServer) SendOTP(ctx context.Context, req *goth.SendOTPRequest) (*go
 
 			return &goth.SendOTPResponse{
 				Success: true,
-				ExpiresInSeconds: 300,
+				ExpiresInSeconds: int32(otpTTL.Seconds()),
 			}, nil
 		
 		case goth.OTPPurposePasswordReset:
@@ -135,7 +132,7 @@ func (g *GothServer) SendOTP(ctx context.Context, req *goth.SendOTPRequest) (*go
 				ctx,
 				"password_reset:email_otp:" + email,
 				hashedOTP,
-				5*time.Minute,
+				otpTTL,
 			).Err()
 			if err != nil {
 				return nil, status.Error(codes.Internal, "failed storing to redis")
@@ -145,9 +142,10 @@ func (g *GothServer) SendOTP(ctx context.Context, req *goth.SendOTPRequest) (*go
 				`	<h2>Reset Password for your account</h2>
 					<p>Your verification code is:</p>
 					<h1>%s</h1>
-					<p>This code expires in <b>5 minutes</b>.</p>
+					<p>This code expires in <b>%d minutes</b>.</p>
 				`,
 				otp,
+				int(otpTTL.Minutes()),
 			)
 
 			err = services.SendMail(email, "Reset Password for your account", mailBody)
@@ -157,7 +155,7 @@ func (g *GothServer) SendOTP(ctx context.Context, req *goth.SendOTPRequest) (*go
 
 			return &goth.SendOTPResponse{
 				Success: true,
-				ExpiresInSeconds: 300,
+				ExpiresInSeconds: int32(otpTTL.Seconds()),
 			}, nil
 
 		case goth.OTPPurposeEmailVerify:
@@ -198,7 +196,7 @@ func (g *GothServer) SendOTP(ctx context.Context, req *goth.SendOTPRequest) (*go
 				ctx,
 				"acc_verify:email_otp:" + email,
 				hashedOTP,
-				5*time.Minute,
+				otpTTL,
 			).Err()
 			if err != nil {
 				return nil, status.Error(codes.Internal, "failed storing to redis")
@@ -208,9 +206,10 @@ func (g *GothServer) SendOTP(ctx context.Context, req *goth.SendOTPRequest) (*go
 				`	<h2>Verify your account.</h2>
 					<p>Your verification code is:</p>
 					<h1>%s</h1>
-					<p>This code expires in <b>5 minutes</b>.</p>
+					<p>This code expires in <b>%d minutes</b>.</p>
 				`,
 				otp,
+				int(otpTTL.Minutes()),
 			)
 
 			err = services.SendMail(email, "Verify your email", mailBody)
@@ -220,7 +219,7 @@ func (g *GothServer) SendOTP(ctx context.Context, req *goth.SendOTPRequest) (*go
 
 			return &goth.SendOTPResponse{
 				Success: true,
-				ExpiresInSeconds: 300,
+				ExpiresInSeconds: int32(otpTTL.Seconds()),
 			}, nil
 
 		default:

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"time"
 
 	"github.com/ayush00git/goth/grpc/goth"
 	"github.com/ayush00git/goth/internal/helpers"
@@ -81,7 +80,7 @@ func (g *GothServer) EnableMFA(ctx context.Context, req *goth.EnableMFARequest) 
 				ctx,
 				"mfa:email_otp:" + userID,
 				hashedOTP,
-				5*time.Minute,
+				otpTTL,
 			).Err()
 			if err != nil {
 				return nil, status.Error(codes.Internal, "failed storing to redis")
@@ -111,9 +110,10 @@ func (g *GothServer) EnableMFA(ctx context.Context, req *goth.EnableMFARequest) 
 				`	<h2>Verify MFA for your account</h2>
 					<p>Your verification code is:</p>
 					<h1>%s</h1>
-					<p>This code expires in <b>5 minutes</b>.</p>
+					<p>This code expires in <b>%d minutes</b>.</p>
 				`,
 				otp,
+				int(otpTTL.Minutes()),
 			)
 			
 			// mail otp to the client
@@ -128,7 +128,7 @@ func (g *GothServer) EnableMFA(ctx context.Context, req *goth.EnableMFARequest) 
 				Success: true,
 				TotpSecret: "",
 				TotpQrUrl: "",
-				OtpExpiresIn: 300,	// 5min
+				OtpExpiresIn: int32(otpTTL.Seconds()),
 			}, nil
 		default:
 			return nil, status.Error(codes.InvalidArgument, "mfa_type argument not recognized")

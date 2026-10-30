@@ -40,7 +40,7 @@ func ValidateMFASessionToken(tokenString string) (*Claims, error) {
 	
 	token, err := jwt.ParseWithClaims(
 		tokenString,
-		Claims{},
+		&Claims{},
 		func(token *jwt.Token) (interface{}, error) {
 			return []byte(secretKey), nil
 		},

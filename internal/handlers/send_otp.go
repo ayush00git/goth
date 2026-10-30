@@ -10,26 +10,66 @@ import (
 	"github.com/ayush00git/goth/internal/interceptors"
 	"github.com/ayush00git/goth/internal/services"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
+// otpResendCooldown is the minimum gap between two OTP emails for the same target.
+const otpResendCooldown = 60 * time.Second
+
+// mfaIdentity returns the user an MFA OTP should go to. It accepts either:
+//   - an access token (claims set by AuthInterceptor), for enabling/disabling MFA, or
+//   - an "x-mfa-session-token" metadata header, for the login step, where the
+//     user has passed the password check but has no access token yet.
+func mfaIdentity(ctx context.Context) (userID, email string, err error) {
+	if claims, ok := interceptors.GetClaims(ctx); ok {
+		return claims.UserID, claims.Email, nil
+	}
+
+	md, _ := metadata.FromIncomingContext(ctx)
+	values := md.Get("x-mfa-session-token")
+	if len(values) == 0 {			// missing password check stage.
+		return "", "", status.Error(codes.Unauthenticated, "access token or mfa session token required")
+	}
+
+	claims, err := services.ValidateMFASessionToken(values[0])
+	if err != nil {
+		return "", "", status.Error(codes.Unauthenticated, "invalid mfa session token")
+	}
+
+	return claims.UserID, claims.Email, nil
+}
+
+// otpCooldown blocks repeated OTP emails to the same target within otpResendCooldown.
+func (g *GothServer) otpCooldown(ctx context.Context, target string) error {
+	ok, err := g.rdb.SetNX(ctx, "otp_cooldown:"+target, 1, otpResendCooldown).Result()
+	if err != nil {
+		return status.Error(codes.Internal, "failed checking otp cooldown")
+	}
+	if !ok {
+		return status.Error(codes.ResourceExhausted, "otp already sent, try again later")
+	}
+	return nil
+}
+
 func (g *GothServer) SendOTP(ctx context.Context, req *goth.SendOTPRequest) (*goth.SendOTPResponse, error) {
 	// OTPPurpose is a enum type with specified values for each type.
-	// 0 - MfaType (authenticated user is required).
+	// 0 - MfaType (access token, or x-mfa-session-token metadata during login).
 	// 1 - Password reset (user could be auth/unauthenticated).
 	// 2 - Email Verification (user could be auth/unauthenticated).
 	
 
 	switch req.Purpose {
 		case goth.OTPPurposeMfa:
-			// get the email of the authenticated user from the access token.
-			claims, ok := interceptors.GetClaims(ctx)
-			if !ok {
-				return nil, status.Error(codes.Unauthenticated, "failed getting claims")
+			// never trust req.Email here: the email always comes from a signed token.
+			userID, email, err := mfaIdentity(ctx)		// even if user has passed an email through the request body, this function takes care of it.
+			if err != nil {
+				return nil, err
 			}
 
-			email := claims.Email
-			userID := claims.UserID
+			if err := g.otpCooldown(ctx, "mfa:"+userID); err != nil {
+				return nil, err
+			}
 
 			otp, err := helpers.GenerateOTP()
 			if err != nil {
@@ -74,6 +114,10 @@ func (g *GothServer) SendOTP(ctx context.Context, req *goth.SendOTPRequest) (*go
 		case goth.OTPPurposePasswordReset:
 
 			email := req.Email
+
+			if err := g.otpCooldown(ctx, "password_reset:"+email); err != nil {
+				return nil, err
+			}
 			
 			// generate + hash the otp and then store to redis.
 			otp, err := helpers.GenerateOTP()
@@ -133,6 +177,10 @@ func (g *GothServer) SendOTP(ctx context.Context, req *goth.SendOTPRequest) (*go
 			}
 			if isVerified == true {
 				return nil, status.Error(codes.AlreadyExists, "your account is already verified")
+			}
+
+			if err := g.otpCooldown(ctx, "acc_verify:"+email); err != nil {
+				return nil, err
 			}
 
 			otp, err := helpers.GenerateOTP()

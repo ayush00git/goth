@@ -11,25 +11,32 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// optionalAuth rpcs accept requests with or without an access token.
+// If a token is sent it must be valid, and its claims are attached to the
+// context. The handler decides what each case is allowed to do.
+var optionalAuth = map[string]bool{
+	"/goth.GothService/SendOTP": true,
+}
+
 func AuthInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 
 	// bypass AuthInterceptor for these public rpcs
 	switch info.FullMethod {
 		case "/goth.GothService/Login",
 			"/goth.GothService/Signup",
-			"/goth.GothService/VerifyOTP":
+			"/goth.GothService/VerifyOTP",
+			"/goth.GothService/VerifyMFA":	// validates the mfa_session_token itself
 			return handler(ctx, req)
 	}
 
-	// read incoming metadata
-	md, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		return nil, status.Error(codes.Unauthenticated, "missing metadata")
-	}
-
-	// read authorization header
+	// read incoming metadata and the authorization header
+	md, _ := metadata.FromIncomingContext(ctx)
 	values := md.Get("authorization")
 	if len(values) == 0 {
+		// no token: let optional-auth rpcs through without claims
+		if optionalAuth[info.FullMethod] {
+			return handler(ctx, req)
+		}
 		return nil, status.Error(codes.Unauthenticated, "authorization header missing")
 	}
 

@@ -48,11 +48,11 @@ func (g *GothServer) GetUser(ctx context.Context, req *goth.GetUserRequest) (*go
 	}
 
 	return &goth.GetUserResponse{
-		UserId: user.Id,
+		UserId: user.UserId,
 		Email: user.Email,
 		FullName: user.FullName,
 		EmailVerified: user.EmailVerified,
 		MfaType: goth.MFAType(mfaType),
-		createdAt: createdAt.Unix(),
+		CreatedAt: createdAt.Unix(),
 	}, nil
 }

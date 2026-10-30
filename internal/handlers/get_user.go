@@ -47,8 +47,12 @@ func (g *GothServer) GetUser(ctx context.Context, req *goth.GetUserRequest) (*go
 		return nil, status.Error(codes.Internal, "failed fetching user")
 	}
 
-	user.MfaType = goth.MFAType(mfaType)
-	user.CreatedAt = createdAt.Unix()
-
-	return &user, nil
+	return &goth.GetUserResponse{
+		UserId: user.Id,
+		Email: user.Email,
+		FullName: user.FullName,
+		EmailVerified: user.EmailVerified,
+		MfaType: goth.MFAType(mfaType),
+		createdAt: createdAt.Unix(),
+	}, nil
 }

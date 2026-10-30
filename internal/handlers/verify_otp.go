@@ -17,9 +17,11 @@ import (
 // On success the OTP is deleted, so each code works once.
 // After maxOTPAttempts wrong codes the OTP is deleted and a new one must be requested.
 func (g *GothServer) consumeOTP(ctx context.Context, otpKey, code string) error {
+	// how many times has someone guessed wrong?
 	attemptsKey := "otp_attempts:" + otpKey
 
 	hashedOTP, err := g.rdb.Get(ctx, otpKey).Result()
+	// redis.Nil -> key does not exist.
 	if errors.Is(err, redis.Nil) {
 		return status.Error(codes.NotFound, "code expired or not requested")
 	}
@@ -28,6 +30,7 @@ func (g *GothServer) consumeOTP(ctx context.Context, otpKey, code string) error 
 	}
 
 	if err := helpers.ValidateHash(hashedOTP, code); err != nil {
+		// increment the value of attemptsKey by 1 and return the 64-bit value.
 		attempts, err := g.rdb.Incr(ctx, attemptsKey).Result()
 		if err != nil {
 			return status.Error(codes.Internal, "failed counting otp attempts")

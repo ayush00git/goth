@@ -2,11 +2,11 @@ package handlers
 
 import (
 	"context"
+	"errors"
 
 	"github.com/ayush00git/goth/grpc/goth"
-	"github.com/ayush00git/goth/internal/helpers"
 	"github.com/ayush00git/goth/internal/services"
-	"github.com/pquerna/otp/totp"
+	"github.com/jackc/pgx/v5"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -39,39 +39,27 @@ func (g *GothServer) VerifyMFA(ctx context.Context, req *goth.VerifyMFARequest) 
 		WHERE user_id = $1`,
 		userID,
 	).Scan(&initials.MfaType, &initials.TotpSecret)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, status.Error(codes.FailedPrecondition, "MFA is not enabled for this user")
+	}
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed fetching mfa_type for user")
 	}
 
-	switch initials.MfaType {
+	switch goth.MFAType(initials.MfaType) {
 		// TOTP based MFA
-		case 1:
-			// validate the client entered TOTP by generating it on server-side
-			// via the same totp_secret.
-			valid := totp.Validate(code, *initials.TotpSecret)	// computes the check by the RPC 6238 algorithm
-			if !valid {
-				return nil, status.Error(codes.PermissionDenied, "invalid code")
+		case goth.MFATypeTotp:
+			// validate the TOTP with a limit on wrong attempts
+			if err := g.checkTOTP(ctx, userID, *initials.TotpSecret, code); err != nil {
+				return nil, err
 			}
 
-		case 2:
+		case goth.MFATypeEmailOtp:
 			// Email OTP based MFA
-			// validate the hashedOTP stored in redis with the code client sends
-			hashedCode, err := g.rdb.Get(
-				ctx,
-				"mfa:email_otp:" + userID,
-			).Result()
-			if err != nil {
-				return nil, status.Error(codes.NotFound, "code may be expired")
+			// check the code, delete it once used, and burn it after too many wrong tries
+			if err := g.consumeOTP(ctx, "mfa:email_otp:"+userID, code); err != nil {
+				return nil, err
 			}
-
-			err = helpers.ValidateHash(hashedCode, code)
-			if err != nil {
-				return nil, status.Error(codes.PermissionDenied, "invalid code")
-			}
-
-			// delete key from redis
-			// if redis key deletion fails it could be ignored
-			g.rdb.Del(ctx, "mfa:email_otp:" + userID)
 		default:
     		return nil, status.Error(codes.InvalidArgument, "invalid mfa_type")
 	}

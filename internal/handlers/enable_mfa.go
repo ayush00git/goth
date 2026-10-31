@@ -30,7 +30,7 @@ func (g *GothServer) EnableMFA(ctx context.Context, req *goth.EnableMFARequest) 
 	userID := claims.UserID
 
 	switch mfa_type {
-		case 1:
+		case goth.MFATypeTotp:
 			// generate the totp_secret (random 32 bytes base-32 encoded string)
 			totp_secret, err := helpers.GenerateTOTPSecret()
 			if err != nil {
@@ -85,7 +85,7 @@ func (g *GothServer) EnableMFA(ctx context.Context, req *goth.EnableMFARequest) 
 				TotpQrUrl: QrURL,
 				OtpExpiresIn: 0,
 			}, nil
-		case 2:
+		case goth.MFATypeEmailOtp:
 			// generate the otp
 			otp, err := helpers.GenerateOTP()
 			if err != nil {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/ayush00git/goth/grpc/goth"
 	"github.com/ayush00git/goth/internal/helpers"
+	"github.com/pquerna/otp/totp"
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -57,6 +58,38 @@ func (g *GothServer) consumeOTP(ctx context.Context, otpKey, code string) error 
 	g.rdb.Del(ctx, attemptsKey)
 
 	return nil
+}
+
+// checkTOTP validates a TOTP code with a limit on wrong attempts.
+// A TOTP can't be burned like an emailed OTP, so after maxOTPAttempts wrong codes
+// the user is locked out until the counter expires (otpTTL).
+func (g *GothServer) checkTOTP(ctx context.Context, userID, secret, code string) error {
+	attemptsKey := "otp_attempts:mfa:totp:" + userID
+
+	attempts, err := g.rdb.Get(ctx, attemptsKey).Int()
+	if err != nil && !errors.Is(err, redis.Nil) {
+		return status.Error(codes.Internal, "failed reading otp attempts")
+	}
+	if attempts >= maxOTPAttempts {
+		return status.Error(codes.ResourceExhausted, "too many wrong attempts, try again later")
+	}
+
+	if totp.Validate(code, secret) {	// computes the check by the RFC 6238 algorithm
+		g.rdb.Del(ctx, attemptsKey)
+		return nil
+	}
+
+	attempts64, err := g.rdb.Incr(ctx, attemptsKey).Result()
+	if err != nil {
+		return status.Error(codes.Internal, "failed counting otp attempts")
+	}
+	if attempts64 == 1 {
+		g.rdb.Expire(ctx, attemptsKey, otpTTL)
+	}
+	if attempts64 >= maxOTPAttempts {
+		return status.Error(codes.ResourceExhausted, "too many wrong attempts, try again later")
+	}
+	return status.Error(codes.PermissionDenied, "invalid code")
 }
 
 // VerifyOTP verifies an OTP sent by SendOTP for the given purpose.

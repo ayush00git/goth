@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net"
+	"time"
 
 	"github.com/ayush00git/goth/grpc/goth"
 	"github.com/ayush00git/goth/internal/db"
@@ -33,6 +34,9 @@ func main() {
 	}
 	defer db.Close()
 	log.Println("connected to psql database")
+
+	// delete expired refresh tokens once at startup and then every hour
+	go db.StartRefreshTokenCleanup(context.Background(), time.Hour)
 
 	// connect to redis client
 	rdb := redis.RedisClient()

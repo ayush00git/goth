@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# cancel an older run of the same PR/branch when a new commit is pushed
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: goth
+          POSTGRES_PASSWORD: goth
+          POSTGRES_DB: goth
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U goth"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      # catches every email the server sends; the tests read OTP codes from its API
+      mailpit:
+        image: axllent/mailpit:v1.21
+        ports: ["1025:1025", "8025:8025"]
+
+    env:
+      DB_CONN_URI: postgres://goth:goth@localhost:5432/goth?sslmode=disable
+      ACCESS_TOKEN_SECRET: ci-access-secret
+      REFRESH_TOKEN_SECRET: ci-refresh-secret
+      MFA_SESSION_TOKEN_SECRET: ci-mfa-session-secret
+      MAIL_USERNAME: goth@example.com
+      MAIL_PASS: unused
+      MAIL_HOST: localhost
+      MAIL_PORT: "1025"
+      MAIL_INSECURE: "true"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            client/cli/go.sum
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Build server and test tools
+        run: |
+          go build -o bin/server ./cmd/server
+          go build -o bin/totpcode ./scripts/e2e/totpcode
+
+      # build the CLI against this commit's generated grpc code, not the published module
+      - name: Build gothtest
+        working-directory: client/cli
+        run: |
+          go mod edit -replace github.com/ayush00git/goth=../..
+          go mod tidy
+          go vet .
+          go build -o ../../bin/gothtest .
+
+      - name: Apply schema
+        run: psql "$DB_CONN_URI" -v ON_ERROR_STOP=1 -f migrations/001_init.sql
+
+      - name: Start server
+        run: |
+          ./bin/server > server.log 2>&1 &
+          for i in $(seq 1 30); do
+            if grep -q "Goth server running" server.log; then exit 0; fi
+            sleep 1
+          done
+          cat server.log
+          exit 1
+
+      - name: Run e2e tests
+        env:
+          GOTHTEST: bin/gothtest
+          TOTPCODE: bin/totpcode
+        run: ./scripts/e2e.sh
+
+      - name: Server log
+        if: always()
+        run: cat server.log || true

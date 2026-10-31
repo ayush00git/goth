@@ -44,15 +44,9 @@ func (g *GothServer) DisableMFA(ctx context.Context, req *goth.DisableMFARequest
 				return nil, status.Error(codes.PermissionDenied, "invalid code")
 			}
 			
-			// Delete mfa_secrets for this user
-			_, err := g.db.Exec(
-				ctx,
-				`DELETE FROM mfa_secrets
-				WHERE user_id = $1`,
-				userID,
-			)
-			if err != nil {
-				return nil, status.Error(codes.Internal, "failed to delete the mfa_secrets")
+			// delete mfa_secrets and turn MFA off in users.mfa_type
+			if err := g.removeMFASecret(ctx, userID); err != nil {
+				return nil, err
 			}
 		
 		case 2:
@@ -70,15 +64,9 @@ func (g *GothServer) DisableMFA(ctx context.Context, req *goth.DisableMFARequest
 				return nil, status.Error(codes.Unauthenticated, "invalid code")
 			}
 
-			// Delete mfa_secrets for this user
-			_, err = g.db.Exec(
-				ctx,
-				`DELETE FROM mfa_secrets
-				WHERE user_id = $1`,
-				userID,
-			)
-			if err != nil {
-				return nil, status.Error(codes.Internal, "failed to delete the mfa_secrets")
+			// delete mfa_secrets and turn MFA off in users.mfa_type
+			if err := g.removeMFASecret(ctx, userID); err != nil {
+				return nil, err
 			}
 
 		default:

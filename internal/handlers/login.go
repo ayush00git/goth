@@ -17,6 +17,7 @@ type RequestedUser struct {
 	email			string
 	password		string
 	email_verified	bool
+	mfa_type		int16
 }
 
 func (g *GothServer) Login(ctx context.Context, req *goth.LoginRequest) (*goth.LoginResponse, error) {
@@ -33,10 +34,10 @@ func (g *GothServer) Login(ctx context.Context, req *goth.LoginRequest) (*goth.L
 	var user RequestedUser
 	err := g.db.QueryRow(
 		ctx,
-		`SELECT id, email, password_hash, email_verified
+		`SELECT id, email, password_hash, email_verified, mfa_type
 		FROM users
 		WHERE email = $1`, email,
-	).Scan(&user.id, &user.email, &user.password, &user.email_verified)
+	).Scan(&user.id, &user.email, &user.password, &user.email_verified, &user.mfa_type)
 	if err == pgx.ErrNoRows {
 		return nil, status.Error(codes.Unauthenticated, "invalid credentials")
 	}
@@ -55,6 +56,30 @@ func (g *GothServer) Login(ctx context.Context, req *goth.LoginRequest) (*goth.L
 		return nil, status.Error(codes.PermissionDenied, "unverified account")
 	}
 
+	// MFA on: no tokens yet. Return an mfa_session_token for VerifyMFA, and
+	// email the code to email-OTP users. Tokens are issued by VerifyMFA.
+	if mfaType := goth.MFAType(user.mfa_type); mfaType != goth.MFATypeNone {
+		mfaSessionToken, err := services.GenerateMFASessionToken(user.id, user.email)
+		if err != nil {
+			return nil, status.Error(codes.Internal, "failed generating mfa session token")
+		}
+
+		if mfaType == goth.MFATypeEmailOtp {
+			// ResourceExhausted: a code was sent within the cooldown and is still valid.
+			err := g.sendMFAEmailOTP(ctx, user.id, user.email)
+			if err != nil && status.Code(err) != codes.ResourceExhausted {
+				return nil, err
+			}
+		}
+
+		return &goth.LoginResponse{
+			MfaRequired: true,
+			MfaSessionToken: mfaSessionToken,
+			MfaType: mfaType,
+		}, nil
+	}
+
+	// MFA off: issue tokens now
 	// generate an access token on login
 	accessToken, err := services.GenerateAccessToken(user.id, user.email)
 	if err != nil {
@@ -80,12 +105,10 @@ func (g *GothServer) Login(ctx context.Context, req *goth.LoginRequest) (*goth.L
 		return nil, status.Error(codes.Internal, "failed to store refresh token to database")
 	}
 
-	// just placeholders for now
 	return &goth.LoginResponse{
 		AccessToken: accessToken,
 		RefreshToken: refreshToken,
-		MfaRequired: true,
-		MfaSessionToken: "need-to-be-set",
-		MfaType: 0,
+		MfaRequired: false,
+		MfaType: goth.MFATypeNone,
 	}, nil
 }

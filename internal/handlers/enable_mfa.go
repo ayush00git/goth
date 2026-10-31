@@ -37,20 +37,9 @@ func (g *GothServer) EnableMFA(ctx context.Context, req *goth.EnableMFARequest) 
 				return nil, status.Error(codes.Internal, "failed generating totp_secret")
 			}
 
-			tags, err := g.db.Exec(
-				ctx,
-				`INSERT INTO mfa_secrets (user_id, totp_secret, mfa_type)
-				VALUES ($1, $2, $3)
-				ON CONFLICT (user_id) DO NOTHING`,
-				userID,
-				totp_secret,
-				mfa_type,
-			)
-			if err != nil {
-				return nil, status.Error(codes.Internal, "failed inserting to database")
-			}
-			if tags.RowsAffected() == 0 {
-				return nil, status.Error(codes.AlreadyExists, "mfa-type for this user already exists")
+			// store mfa_secrets and turn MFA on in users.mfa_type
+			if err := g.saveMFASecret(ctx, userID, totp_secret, mfa_type); err != nil {
+				return nil, err
 			}
 			
 			// generate the totp QR URL to be passed to the authenticator app
@@ -86,21 +75,9 @@ func (g *GothServer) EnableMFA(ctx context.Context, req *goth.EnableMFARequest) 
 				return nil, status.Error(codes.Internal, "failed storing to redis")
 			}
 	
-			// store mfa_secrets to db
-			tags, err := g.db.Exec(
-				ctx,
-				`INSERT INTO mfa_secrets (user_id, totp_secret, mfa_type)
-				VALUES ($1, $2, $3)
-				ON CONFLICT (user_id) DO NOTHING`,
-				userID,
-				"",
-				mfa_type,
-			)
-			if err != nil {
-				return nil, status.Error(codes.Internal, "failed inserting mfa_secrets to database")
-			}
-			if tags.RowsAffected() == 0 {
-				return nil, status.Error(codes.AlreadyExists, "mfa-type for this user already exists")
+			// store mfa_secrets and turn MFA on in users.mfa_type
+			if err := g.saveMFASecret(ctx, userID, "", mfa_type); err != nil {
+				return nil, err
 			}
 
 			// create email subject

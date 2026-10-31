@@ -31,6 +31,14 @@ var loginCmd = &cobra.Command{
 			return err
 		}
 
+		// MFA on: finish with verify-mfa using the session token and the code
+		if resp.MfaRequired {
+			fmt.Println("MFA Required")
+			fmt.Printf("MFA Type:          %d (1=TOTP, 2=EmailOTP)\n", resp.MfaType)
+			fmt.Printf("MFA Session Token: %s\n", resp.MfaSessionToken)
+			return nil
+		}
+
 		fmt.Println("Login Successful")
 		fmt.Printf("Access Token:  %s\n", resp.AccessToken)
 		fmt.Printf("Refresh Token: %s\n", resp.RefreshToken)

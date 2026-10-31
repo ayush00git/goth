@@ -64,12 +64,20 @@ func (g *GothServer) Login(ctx context.Context, req *goth.LoginRequest) (*goth.L
 			return nil, status.Error(codes.Internal, "failed generating mfa session token")
 		}
 
-		if mfaType == goth.MFATypeEmailOtp {
-			// ResourceExhausted: a code was sent within the cooldown and is still valid.
-			err := g.sendMFAEmailOTP(ctx, user.id, user.email)
-			if err != nil && status.Code(err) != codes.ResourceExhausted {
-				return nil, err
-			}
+		switch mfaType {
+			case goth.MFATypeTotp:
+				// nothing to send: the authenticator app generates the code,
+				// and VerifyMFA checks it against mfa_secrets.totp_secret.
+
+			case goth.MFATypeEmailOtp:
+				// ResourceExhausted: a code was sent within the cooldown and is still valid.
+				err := g.sendMFAEmailOTP(ctx, user.id, user.email)
+				if err != nil && status.Code(err) != codes.ResourceExhausted {
+					return nil, err
+				}
+
+			default:
+				return nil, status.Error(codes.Internal, "unknown mfa_type for user")
 		}
 
 		return &goth.LoginResponse{

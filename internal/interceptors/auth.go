@@ -26,6 +26,8 @@ func AuthInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo, h
 			"/goth.GothService/Signup",
 			"/goth.GothService/VerifyOTP",
 			"/goth.GothService/VerifyMFA",	// validates the mfa_session_token itself
+			"/goth.GothService/RefreshToken",
+			"/goth.GothService/Logout",
 			"/goth.GothService/ValidateToken":	// the token to check is in the request body
 			return handler(ctx, req)
 	}

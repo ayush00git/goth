@@ -46,15 +46,15 @@ func (g *GothServer) VerifyMFA(ctx context.Context, req *goth.VerifyMFARequest) 
 		return nil, status.Error(codes.Internal, "failed fetching mfa_type for user")
 	}
 
-	switch initials.MfaType {
+	switch goth.MFAType(initials.MfaType) {
 		// TOTP based MFA
-		case 1:
+		case goth.MFATypeTotp:
 			// validate the TOTP with a limit on wrong attempts
 			if err := g.checkTOTP(ctx, userID, *initials.TotpSecret, code); err != nil {
 				return nil, err
 			}
 
-		case 2:
+		case goth.MFATypeEmailOtp:
 			// Email OTP based MFA
 			// check the code, delete it once used, and burn it after too many wrong tries
 			if err := g.consumeOTP(ctx, "mfa:email_otp:"+userID, code); err != nil {

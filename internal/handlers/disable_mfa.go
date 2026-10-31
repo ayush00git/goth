@@ -38,8 +38,8 @@ func (g *GothServer) DisableMFA(ctx context.Context, req *goth.DisableMFARequest
 		return nil, status.Error(codes.Internal, "failed to read the database")
 	}
 
-	switch initials.MfaType {
-		case 1:
+	switch goth.MFAType(initials.MfaType) {
+		case goth.MFATypeTotp:
 			// validate the TOTP with a limit on wrong attempts
 			if err := g.checkTOTP(ctx, userID, *initials.TotpSecret, code); err != nil {
 				return nil, err
@@ -78,7 +78,7 @@ func (g *GothServer) DisableMFA(ctx context.Context, req *goth.DisableMFARequest
 				return nil, status.Error(codes.Internal, "failed committing mfa removal")
 			}
 		
-		case 2:
+		case goth.MFATypeEmailOtp:
 			// check the code, delete it once used, and burn it after too many wrong tries
 			if err := g.consumeOTP(ctx, "mfa:email_otp:"+userID, code); err != nil {
 				return nil, err

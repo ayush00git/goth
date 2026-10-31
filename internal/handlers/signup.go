@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"log"
 
 	"github.com/ayush00git/goth/grpc/goth"
 	"golang.org/x/crypto/bcrypt"
@@ -30,8 +31,8 @@ func (g *GothServer) Signup(ctx context.Context, req *goth.SignupRequest) (*goth
 	var userID string
 	err = g.db.QueryRow(
 		ctx,
-		`INSERT INTO USERS (email, password_hash, full_name)
-		VALUES ($1, $2, $3)
+		`INSERT INTO USERS (email, password_hash, full_name, email_verified)
+		VALUES ($1, $2, $3, FALSE)
 		RETURNING id`,
 		email,
 		hashedPass,
@@ -40,6 +41,15 @@ func (g *GothServer) Signup(ctx context.Context, req *goth.SignupRequest) (*goth
 
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to create the user")
+	}
+
+	// Call SendOTP rpc handler with a flag 2.
+	_, err = g.SendOTP(ctx, &goth.SendOTPRequest{
+		Email: email,
+		Purpose: goth.OTPPurposeEmailVerify,
+	})
+	if err != nil {
+    	log.Printf("signup: failed sending verification otp to %s: %v", email, err)
 	}
 
 	// return the SignupResponse struct

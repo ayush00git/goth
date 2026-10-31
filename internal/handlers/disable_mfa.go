@@ -2,12 +2,12 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"log"
 
 	"github.com/ayush00git/goth/grpc/goth"
-	"github.com/ayush00git/goth/internal/helpers"
 	"github.com/ayush00git/goth/internal/interceptors"
-	"github.com/pquerna/otp/totp"
+	"github.com/jackc/pgx/v5"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -30,6 +30,9 @@ func (g *GothServer) DisableMFA(ctx context.Context, req *goth.DisableMFARequest
 		WHERE user_id = $1`,
 		userID,
 	).Scan(&initials.MfaType, &initials.TotpSecret)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, status.Error(codes.FailedPrecondition, "MFA is not enabled for this user")
+	}
 	if err != nil {
 		log.Printf("Error: %v", err)
 		return nil, status.Error(codes.Internal, "failed to read the database")
@@ -37,11 +40,9 @@ func (g *GothServer) DisableMFA(ctx context.Context, req *goth.DisableMFARequest
 
 	switch initials.MfaType {
 		case 1:
-			// validate the client entered TOTP by generating it on server-side
-			// via the same totp_secret.
-			valid := totp.Validate(code, *initials.TotpSecret)	// computes the check by the RPC 6238 algorithm
-			if !valid {
-				return nil, status.Error(codes.PermissionDenied, "invalid code")
+			// validate the TOTP with a limit on wrong attempts
+			if err := g.checkTOTP(ctx, userID, *initials.TotpSecret, code); err != nil {
+				return nil, err
 			}
 			
 			// delete mfa_secrets and turn MFA off in users.mfa_type, together
@@ -78,18 +79,9 @@ func (g *GothServer) DisableMFA(ctx context.Context, req *goth.DisableMFARequest
 			}
 		
 		case 2:
-			// match the otp with the one stored in redis.
-			hashCode, err := g.rdb.Get(
-				ctx,
-				"mfa:email_otp:" + userID,
-			).Result()
-			if err != nil {
-				return nil, status.Error(codes.NotFound, "code may be expired")
-			}
-
-			err = helpers.ValidateHash(hashCode, code)
-			if err != nil {
-				return nil, status.Error(codes.Unauthenticated, "invalid code")
+			// check the code, delete it once used, and burn it after too many wrong tries
+			if err := g.consumeOTP(ctx, "mfa:email_otp:"+userID, code); err != nil {
+				return nil, err
 			}
 
 			// delete mfa_secrets and turn MFA off in users.mfa_type, together

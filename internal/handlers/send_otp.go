@@ -48,6 +48,51 @@ func (g *GothServer) otpCooldown(ctx context.Context, target string) error {
 	return nil
 }
 
+// sendMFAEmailOTP emails a new MFA code to the user and stores its hash at
+// mfa:email_otp:<userID>, where VerifyMFA and DisableMFA read it.
+// Returns ResourceExhausted if a code was sent within otpResendCooldown.
+func (g *GothServer) sendMFAEmailOTP(ctx context.Context, userID, email string) error {
+	if err := g.otpCooldown(ctx, "mfa:"+userID); err != nil {
+		return err
+	}
+
+	otp, err := helpers.GenerateOTP()
+	if err != nil {
+		return status.Error(codes.Internal, "failed generating OTP")
+	}
+
+	hashedOTP, err := helpers.GenerateHash(otp)
+	if err != nil {
+		return status.Error(codes.Internal, "failed hashing the otp")
+	}
+
+	// store OTP to redis.
+	err = g.rdb.Set(
+		ctx,
+		"mfa:email_otp:" + userID,
+		hashedOTP,
+		otpTTL,
+	).Err()
+	if err != nil {
+		return status.Error(codes.Internal, "failed storing otp to redis")
+	}
+
+	mailBody := fmt.Sprintf(
+		`	<h2>Verify MFA for your account</h2>
+			<p>Your verification code is:</p>
+			<h1>%s</h1>
+			<p>This code expires in <b>%d minutes</b>.</p>
+		`,
+		otp,
+		int(otpTTL.Minutes()),
+	)
+
+	if err := services.SendMail(email, "Verify MFA for your account", mailBody); err != nil {
+		return status.Error(codes.Internal, "failed sending email to user")
+	}
+	return nil
+}
+
 func (g *GothServer) SendOTP(ctx context.Context, req *goth.SendOTPRequest) (*goth.SendOTPResponse, error) {
 	// OTPPurpose is a enum type with specified values for each type.
 	// 0 - MfaType (access token, or x-mfa-session-token metadata during login).
@@ -63,44 +108,8 @@ func (g *GothServer) SendOTP(ctx context.Context, req *goth.SendOTPRequest) (*go
 				return nil, err
 			}
 
-			if err := g.otpCooldown(ctx, "mfa:"+userID); err != nil {
+			if err := g.sendMFAEmailOTP(ctx, userID, email); err != nil {
 				return nil, err
-			}
-
-			otp, err := helpers.GenerateOTP()
-			if err != nil {
-				return nil, status.Error(codes.Internal, "failed generating OTP")
-			}
-
-			hashedOTP, err := helpers.GenerateHash(otp)
-			if err != nil {
-				return nil, status.Error(codes.Internal, "failed hashing the otp")
-			}
-
-			// store OTP to redis.
-			err = g.rdb.Set(
-				ctx,
-				"mfa:email_otp:" + userID,
-				hashedOTP,
-				otpTTL,
-			).Err()
-			if err != nil {
-				return nil, status.Error(codes.Internal, "failed storing otp to redis")
-			}
-
-			mailBody := fmt.Sprintf(
-				`	<h2>Verify MFA for your account</h2>
-					<p>Your verification code is:</p>
-					<h1>%s</h1>
-					<p>This code expires in <b>%d minutes</b>.</p>
-				`,
-				otp,
-				int(otpTTL.Minutes()),
-			)
-
-			err = services.SendMail(email, "Verify MFA for your account", mailBody)
-			if err != nil {
-				return nil, status.Error(codes.Internal, "failed sending email to user")
 			}
 
 			return &goth.SendOTPResponse{

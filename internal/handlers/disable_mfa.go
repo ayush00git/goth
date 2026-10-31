@@ -44,8 +44,14 @@ func (g *GothServer) DisableMFA(ctx context.Context, req *goth.DisableMFARequest
 				return nil, status.Error(codes.PermissionDenied, "invalid code")
 			}
 			
-			// Delete mfa_secrets for this user
-			_, err := g.db.Exec(
+			// delete mfa_secrets and turn MFA off in users.mfa_type, together
+			tx, err := g.db.Begin(ctx)
+			if err != nil {
+				return nil, status.Error(codes.Internal, "failed starting database transaction")
+			}
+			defer tx.Rollback(ctx)
+
+			_, err = tx.Exec(
 				ctx,
 				`DELETE FROM mfa_secrets
 				WHERE user_id = $1`,
@@ -53,6 +59,22 @@ func (g *GothServer) DisableMFA(ctx context.Context, req *goth.DisableMFARequest
 			)
 			if err != nil {
 				return nil, status.Error(codes.Internal, "failed to delete the mfa_secrets")
+			}
+
+			_, err = tx.Exec(
+				ctx,
+				`UPDATE users
+				SET mfa_type = $1, updated_at = NOW()
+				WHERE id = $2`,
+				goth.MFATypeNone,
+				userID,
+			)
+			if err != nil {
+				return nil, status.Error(codes.Internal, "failed resetting mfa_type for user")
+			}
+
+			if err := tx.Commit(ctx); err != nil {
+				return nil, status.Error(codes.Internal, "failed committing mfa removal")
 			}
 		
 		case 2:
@@ -70,8 +92,14 @@ func (g *GothServer) DisableMFA(ctx context.Context, req *goth.DisableMFARequest
 				return nil, status.Error(codes.Unauthenticated, "invalid code")
 			}
 
-			// Delete mfa_secrets for this user
-			_, err = g.db.Exec(
+			// delete mfa_secrets and turn MFA off in users.mfa_type, together
+			tx, err := g.db.Begin(ctx)
+			if err != nil {
+				return nil, status.Error(codes.Internal, "failed starting database transaction")
+			}
+			defer tx.Rollback(ctx)
+
+			_, err = tx.Exec(
 				ctx,
 				`DELETE FROM mfa_secrets
 				WHERE user_id = $1`,
@@ -79,6 +107,22 @@ func (g *GothServer) DisableMFA(ctx context.Context, req *goth.DisableMFARequest
 			)
 			if err != nil {
 				return nil, status.Error(codes.Internal, "failed to delete the mfa_secrets")
+			}
+
+			_, err = tx.Exec(
+				ctx,
+				`UPDATE users
+				SET mfa_type = $1, updated_at = NOW()
+				WHERE id = $2`,
+				goth.MFATypeNone,
+				userID,
+			)
+			if err != nil {
+				return nil, status.Error(codes.Internal, "failed resetting mfa_type for user")
+			}
+
+			if err := tx.Commit(ctx); err != nil {
+				return nil, status.Error(codes.Internal, "failed committing mfa removal")
 			}
 
 		default:

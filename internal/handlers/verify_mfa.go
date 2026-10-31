@@ -76,31 +76,28 @@ func (g *GothServer) VerifyMFA(ctx context.Context, req *goth.VerifyMFARequest) 
     		return nil, status.Error(codes.InvalidArgument, "invalid mfa_type")
 	}
 
-	// update mfa_type in users table
-	tags, err := g.db.Exec(
-		ctx,
-		`UPDATE users
-		SET mfa_type = $1
-		WHERE id = $2`,
-		initials.MfaType,
-		userID,
-	)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed updating users for mfa_type")
-	}
-	if tags.RowsAffected() == 0 {
-		return nil, status.Error(codes.NotFound, "no user record updated")
-	}
-
 	// generate the access and refresh token
 	accessToken, err := services.GenerateAccessToken(userID, email)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed generating an access token")
 	}
 
-	refreshToken, _, err := services.GenerateRefreshToken(userID, email, "go-client")
+	refreshToken, jti, err := services.GenerateRefreshToken(userID, email, "go-client")
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed generating refresh token")
+	}
+
+	// save jti so RefreshToken and Logout can find this session
+	_, err = g.db.Exec(
+		ctx,
+		`INSERT INTO refresh_tokens (user_id, jti, device_fingerprint)
+		VALUES ($1, $2, $3)`,
+		userID,
+		jti,
+		"go-client",	// for testing
+	)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to store refresh token to database")
 	}
 
 	return &goth.VerifyMFAResponse{

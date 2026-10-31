@@ -13,9 +13,10 @@ import (
 
 // LoginReqBody
 type RequestedUser struct {
-	id			string
-	email		string
-	password	string
+	id				string
+	email			string
+	password		string
+	email_verified	bool
 }
 
 func (g *GothServer) Login(ctx context.Context, req *goth.LoginRequest) (*goth.LoginResponse, error) {
@@ -32,10 +33,10 @@ func (g *GothServer) Login(ctx context.Context, req *goth.LoginRequest) (*goth.L
 	var user RequestedUser
 	err := g.db.QueryRow(
 		ctx,
-		`SELECT id, email, password_hash
+		`SELECT id, email, password_hash, email_verified
 		FROM users
 		WHERE email = $1`, email,
-	).Scan(&user.id, &user.email, &user.password)
+	).Scan(&user.id, &user.email, &user.password, &user.email_verified)
 	if err == pgx.ErrNoRows {
 		return nil, status.Error(codes.Unauthenticated, "invalid credentials")
 	}
@@ -47,6 +48,11 @@ func (g *GothServer) Login(ctx context.Context, req *goth.LoginRequest) (*goth.L
 	err = bcrypt.CompareHashAndPassword([]byte(user.password), []byte(password))
 	if err != nil {
 		return nil, status.Error(codes.Unauthenticated, "credentials do not match.")
+	}
+
+	// check if unverified
+	if !user.email_verified {
+		return nil, status.Error(codes.PermissionDenied, "unverified account")
 	}
 
 	// generate an access token on login

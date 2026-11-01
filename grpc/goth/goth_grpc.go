@@ -74,6 +74,7 @@ type GothServiceClient interface {
 	ValidateToken(ctx context.Context, in *ValidateTokenRequest, opts ...grpc.CallOption) (*ValidateTokenResponse, error)
 	GetUser(ctx context.Context, in *GetUserRequest, opts ...grpc.CallOption) (*GetUserResponse, error)
 	UpdatePassword(ctx context.Context, in *UpdatePasswordRequest, opts ...grpc.CallOption) (*UpdatePasswordResponse, error)
+	ResetPassword(ctx context.Context, in *ResetPasswordRequest, opts ...grpc.CallOption) (*ResetPasswordResponse, error)
 }
 
 type gothServiceClient struct {
@@ -204,6 +205,16 @@ func (c *gothServiceClient) UpdatePassword(ctx context.Context, in *UpdatePasswo
 	return out, nil
 }
 
+func (c *gothServiceClient) ResetPassword(ctx context.Context, in *ResetPasswordRequest, opts ...grpc.CallOption) (*ResetPasswordResponse, error) {
+	out := new(ResetPasswordResponse)
+	callOpts := append([]grpc.CallOption{grpc.ForceCodecV2(CodecV2{})}, opts...)
+	err := c.cc.Invoke(ctx, "/goth.GothService/ResetPassword", in, out, callOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // GothServiceServer is the server API for GothService service.
 // All implementations must embed UnimplementedGothServiceServer
 // for forward compatibility.
@@ -220,6 +231,7 @@ type GothServiceServer interface {
 	ValidateToken(context.Context, *ValidateTokenRequest) (*ValidateTokenResponse, error)
 	GetUser(context.Context, *GetUserRequest) (*GetUserResponse, error)
 	UpdatePassword(context.Context, *UpdatePasswordRequest) (*UpdatePasswordResponse, error)
+	ResetPassword(context.Context, *ResetPasswordRequest) (*ResetPasswordResponse, error)
 	mustEmbedUnimplementedGothServiceServer()
 }
 
@@ -274,6 +286,10 @@ func (UnimplementedGothServiceServer) GetUser(context.Context, *GetUserRequest) 
 
 func (UnimplementedGothServiceServer) UpdatePassword(context.Context, *UpdatePasswordRequest) (*UpdatePasswordResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdatePassword not implemented")
+}
+
+func (UnimplementedGothServiceServer) ResetPassword(context.Context, *ResetPasswordRequest) (*ResetPasswordResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResetPassword not implemented")
 }
 
 func _GothService_Signup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -492,6 +508,24 @@ func _GothService_UpdatePassword_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _GothService_ResetPassword_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResetPasswordRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GothServiceServer).ResetPassword(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:	srv,
+		FullMethod:	"/goth.GothService/ResetPassword",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GothServiceServer).ResetPassword(ctx, req.(*ResetPasswordRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 var _GothService_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "goth.GothService",
 	HandlerType: (*GothServiceServer)(nil),
@@ -543,6 +577,10 @@ var _GothService_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName:	"UpdatePassword",
 			Handler:	_GothService_UpdatePassword_Handler,
+		},
+		{
+			MethodName:	"ResetPassword",
+			Handler:	_GothService_ResetPassword_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

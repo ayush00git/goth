@@ -138,7 +138,10 @@ expect_err "verify-otp without email" InvalidArgument verify-otp --purpose 2 --c
 expect_err "verify-otp with wrong code" PermissionDenied verify-otp --purpose 2 --email "$EMAIL" --code 000000
 expect_ok  "verify-otp with mailed code" verify-otp --purpose 2 --email "$EMAIL" --code "$SIGNUP_CODE"
 expect_err "verify-otp reusing the code" NotFound verify-otp --purpose 2 --email "$EMAIL" --code "$SIGNUP_CODE"
-expect_err "send verification to verified account" AlreadyExists send-otp --purpose 2 --email "$EMAIL"
+GHOST_EMAIL=$(email_for no-account)
+expect_ok  "send verification to unknown email looks the same" send-otp --purpose 2 --email "$GHOST_EMAIL"
+expect_no_new_mail "no verification mail sent to unknown email" "$GHOST_EMAIL"
+expect_err "unknown email resend within cooldown" ResourceExhausted send-otp --purpose 2 --email "$GHOST_EMAIL"
 expect_err "verify-otp with MFA purpose" InvalidArgument verify-otp --purpose 0 --email "$EMAIL" --code 123456
 expect_err "verify-otp with unknown purpose" InvalidArgument verify-otp --purpose 9 --email "$EMAIL" --code 123456
 
@@ -191,6 +194,8 @@ new_user reset
 expect_ok  "send reset code" send-otp --purpose 1 --email "$RESET_EMAIL"
 mail_code "$RESET_EMAIL"; RESET_CODE=$MAIL_CODE
 expect_err "resend reset code within cooldown" ResourceExhausted send-otp --purpose 1 --email "$RESET_EMAIL"
+expect_ok  "send reset code to unknown email looks the same" send-otp --purpose 1 --email "$GHOST_EMAIL"
+expect_no_new_mail "no reset mail sent to unknown email" "$GHOST_EMAIL"
 expect_err "verify reset without email" InvalidArgument verify-otp --purpose 1 --code "$RESET_CODE"
 expect_err "verify reset with wrong code" PermissionDenied verify-otp --purpose 1 --email "$RESET_EMAIL" --code 000000
 expect_ok  "verify reset with mailed code" verify-otp --purpose 1 --email "$RESET_EMAIL" --code "$RESET_CODE"

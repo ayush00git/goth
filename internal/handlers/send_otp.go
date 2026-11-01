@@ -127,7 +127,7 @@ func (g *GothServer) SendOTP(ctx context.Context, req *goth.SendOTPRequest) (*go
 				return nil, err
 			}
 
-			// no account: return the same success response without sending,
+			// no account: return the same success response without sending the mail.
 			// so the caller can't tell which emails are registered.
 			var exists bool
 			err := g.db.QueryRow(

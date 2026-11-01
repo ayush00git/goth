@@ -2,12 +2,14 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/ayush00git/goth/grpc/goth"
 	"github.com/ayush00git/goth/internal/helpers"
 	"github.com/ayush00git/goth/internal/interceptors"
 	"github.com/ayush00git/goth/internal/services"
+	"github.com/jackc/pgx/v5"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -124,7 +126,25 @@ func (g *GothServer) SendOTP(ctx context.Context, req *goth.SendOTPRequest) (*go
 			if err := g.otpCooldown(ctx, "password_reset:"+email); err != nil {
 				return nil, err
 			}
-			
+
+			// no account: return the same success response without sending the mail.
+			// so the caller can't tell which emails are registered.
+			var exists bool
+			err := g.db.QueryRow(
+				ctx,
+				`SELECT EXISTS (SELECT 1 FROM users WHERE email = $1)`,
+				email,
+			).Scan(&exists)
+			if err != nil {
+				return nil, status.Error(codes.Internal, "database error")
+			}
+			if !exists {
+				return &goth.SendOTPResponse{
+					Success: true,
+					ExpiresInSeconds: int32(otpTTL.Seconds()),
+				}, nil
+			}
+
 			// generate + hash the otp and then store to redis.
 			otp, err := helpers.GenerateOTP()
 			if err != nil {
@@ -171,7 +191,13 @@ func (g *GothServer) SendOTP(ctx context.Context, req *goth.SendOTPRequest) (*go
 			// get the email once again.
 			email := req.Email
 
-			// check if the user's account is already verified.
+			// cooldown first, so unknown and registered emails behave the same.
+			if err := g.otpCooldown(ctx, "acc_verify:"+email); err != nil {
+				return nil, err
+			}
+
+			// no account or already verified: return the same success response
+			// without sending, so the caller can't tell which emails are registered.
 			var isVerified bool
 			err := g.db.QueryRow(
 				ctx,
@@ -179,15 +205,14 @@ func (g *GothServer) SendOTP(ctx context.Context, req *goth.SendOTPRequest) (*go
 				WHERE email = $1`,
 				email,
 			).Scan(&isVerified)
-			if err != nil {
-				return nil, status.Error(codes.Internal, "failed sending email to user")
+			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+				return nil, status.Error(codes.Internal, "database error")
 			}
-			if isVerified == true {
-				return nil, status.Error(codes.AlreadyExists, "your account is already verified")
-			}
-
-			if err := g.otpCooldown(ctx, "acc_verify:"+email); err != nil {
-				return nil, err
+			if errors.Is(err, pgx.ErrNoRows) || isVerified {
+				return &goth.SendOTPResponse{
+					Success: true,
+					ExpiresInSeconds: int32(otpTTL.Seconds()),
+				}, nil
 			}
 
 			otp, err := helpers.GenerateOTP()

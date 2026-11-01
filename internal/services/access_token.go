@@ -65,7 +65,7 @@ func RefreshAccessToken(refreshToken string) (string, error) {
 	// values to generate a new access token
 	token, err := jwt.ParseWithClaims(refreshToken, &Claims{},
 		func(token *jwt.Token) (interface{}, error) {
-		return refreshSecret, nil
+			return []byte(refreshSecret), nil
 		},
 	)
 	if err != nil {
@@ -95,3 +95,5 @@ func RefreshAccessToken(refreshToken string) (string, error) {
 	}
 	return accessTokenString, nil
 }
+// this is a unused function, the tasks are very safely and accurately handled by
+// the ValidateRefreshToken, not removing it for now. but just "it is unused."

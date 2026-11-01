@@ -200,7 +200,17 @@ expect_err "verify reset without email" InvalidArgument verify-otp --purpose 1 -
 expect_err "verify reset with wrong code" PermissionDenied verify-otp --purpose 1 --email "$RESET_EMAIL" --code 000000
 expect_ok  "verify reset with mailed code" verify-otp --purpose 1 --email "$RESET_EMAIL" --code "$RESET_CODE"
 expect_out "reset returns a session token" "Session Token:"
+RESET_SESSION=$(field 'Session Token')
 expect_err "verify reset reusing the code" NotFound verify-otp --purpose 1 --email "$RESET_EMAIL" --code "$RESET_CODE"
+
+section "reset-password"
+expect_err "reset without new password" InvalidArgument reset-password --session-token "$RESET_SESSION" --new-password ""
+expect_err "reset with garbage session token" Unauthenticated reset-password --session-token garbage --new-password reset-pass-1
+expect_ok  "reset with session token" reset-password --session-token "$RESET_SESSION" --new-password reset-pass-1
+expect_err "reset reusing the session token" Unauthenticated reset-password --session-token "$RESET_SESSION" --new-password reset-pass-2
+expect_err "refresh token revoked after reset" Unauthenticated refresh-token --refresh-token "$RESET_RT"
+expect_err "login with old password after reset" Unauthenticated login --email "$RESET_EMAIL" --password "$PASSWORD"
+expect_ok  "login with new password after reset" login --email "$RESET_EMAIL" --password reset-pass-1
 
 new_user burn
 expect_ok  "send reset code (burn test)" send-otp --purpose 1 --email "$BURN_EMAIL"

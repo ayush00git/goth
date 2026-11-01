@@ -392,6 +392,33 @@ func (m *UpdatePasswordResponse) FromBytes(data []byte) error {
 	return getFory().Deserialize(data, m)
 }
 
+// Type ID 124 is specified manually.
+type ResetPasswordRequest struct {
+	SessionToken string `fory:"id=1"`
+	NewPassword string `fory:"id=2"`
+}
+
+func (m *ResetPasswordRequest) ToBytes() ([]byte, error) {
+	return getFory().Serialize(m)
+}
+
+func (m *ResetPasswordRequest) FromBytes(data []byte) error {
+	return getFory().Deserialize(data, m)
+}
+
+// Type ID 125 is specified manually.
+type ResetPasswordResponse struct {
+	Success bool `fory:"id=1"`
+}
+
+func (m *ResetPasswordResponse) ToBytes() ([]byte, error) {
+	return getFory().Serialize(m)
+}
+
+func (m *ResetPasswordResponse) FromBytes(data []byte) error {
+	return getFory().Deserialize(data, m)
+}
+
 func RegisterTypes(f *fory.Fory) error {
 	if err := f.RegisterEnum(MFAType(0), 107685052); err != nil {
 		return err
@@ -472,6 +499,12 @@ func RegisterTypes(f *fory.Fory) error {
 		return err
 	}
 	if err := f.RegisterStruct(UpdatePasswordResponse{}, 123); err != nil {
+		return err
+	}
+	if err := f.RegisterStruct(ResetPasswordRequest{}, 124); err != nil {
+		return err
+	}
+	if err := f.RegisterStruct(ResetPasswordResponse{}, 125); err != nil {
 		return err
 	}
 	return nil

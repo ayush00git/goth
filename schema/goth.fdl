@@ -147,6 +147,15 @@ message UpdatePasswordResponse [id=123] {
     bool success = 1;
 }
 
+message ResetPasswordRequest [id=124] {
+    string session_token = 1;
+    string new_password = 2;
+}
+
+message ResetPasswordResponse [id=125] {
+    bool success = 1;
+}
+
 service GothService {
     rpc Signup(SignupRequest) returns (SignupResponse);
     rpc Login(LoginRequest) returns (LoginResponse);
@@ -164,4 +173,5 @@ service GothService {
 
     rpc GetUser(GetUserRequest) returns (GetUserResponse);
     rpc UpdatePassword(UpdatePasswordRequest) returns (UpdatePasswordResponse);
+    rpc ResetPassword(ResetPasswordRequest) returns (ResetPasswordResponse);
 }
